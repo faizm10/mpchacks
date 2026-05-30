@@ -4,37 +4,40 @@ import { useMemo, useState, useCallback, useRef } from "react";
 import { analyzeTransactions, CARD_NAMES, type ComplianceResult, type Transaction } from "@/lib/compliance";
 import { type Severity } from "@/lib/policy";
 import rawData from "@/lib/transactions.json";
+import AppRail from "@/components/wireframe/AppRail";
 
 const transactions = rawData as Transaction[];
 
-const SEV_COLOR: Record<string, string> = {
-  critical: "#ef4444",
-  high: "#f97316",
-  medium: "#eab308",
-  low: "#6b7280",
-};
-const SEV_BG: Record<string, string> = {
-  critical: "rgba(239,68,68,0.12)",
-  high: "rgba(249,115,22,0.10)",
-  medium: "rgba(234,179,8,0.10)",
-  low: "rgba(107,114,128,0.08)",
-};
+
+function statusVar(sev: Severity | string): string {
+  return `var(--status-${sev})`;
+}
+
+function statusBgVar(sev: Severity | string): string {
+  return `var(--status-${sev}-bg)`;
+}
+
+function riskColor(score: number): string {
+  if (score >= 80) return "var(--status-critical)";
+  if (score >= 50) return "var(--status-high)";
+  if (score >= 25) return "var(--status-medium)";
+  return "var(--status-positive)";
+}
 
 function SeverityBadge({ sev, pulse }: { sev: Severity | null; pulse?: boolean }) {
-  if (!sev) return <span style={styles.badgeClear}>clear</span>;
+  if (!sev) return <span className="sev-badge sev-badge--clear">clear</span>;
   return (
-    <span style={{ ...styles.badge, color: SEV_COLOR[sev], background: SEV_BG[sev], position: "relative" }}>
-      {pulse && sev === "critical" && <span style={styles.pulse} />}
+    <span className={`sev-badge sev-badge--${sev}`}>
+      {pulse && sev === "critical" && <span className="sev-badge__pulse" />}
       {sev}
     </span>
   );
 }
 
 function RiskBar({ score }: { score: number }) {
-  const color = score >= 80 ? "#ef4444" : score >= 50 ? "#f97316" : score >= 25 ? "#eab308" : "#22c55e";
   return (
     <div style={styles.riskBarTrack}>
-      <div style={{ ...styles.riskBarFill, width: `${score}%`, background: color }} />
+      <div style={{ ...styles.riskBarFill, width: `${score}%`, background: riskColor(score) }} />
     </div>
   );
 }
@@ -113,110 +116,107 @@ export default function ComplianceEngine() {
   );
 
   return (
-    <div style={styles.root}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <a href="/" style={styles.backLink}>← Wireframe</a>
-          <div>
-            <div style={styles.headerTitle}>
-              <span style={styles.brimMark}>brim</span>
-              <span style={styles.headerDivider}>/</span>
-              Policy Compliance Engine
-            </div>
-            <div style={styles.headerSub}>
+    <div className="app">
+      <AppRail complianceActive />
+
+      <div className="stage stage--sketchboard">
+        <div className="stage__inner stage__inner--compliance compliance">
+          <header className="sec-head">
+            <div className="sec-kicker">Live Feature · ⚑</div>
+            <h1 className="sec-title">Policy Compliance Engine</h1>
+            <p className="sec-lead">
               {transactions.length.toLocaleString()} transactions scanned ·{" "}
-              <span style={{ color: SEV_COLOR.critical }}>{stats.critCount} critical</span> ·{" "}
-              <span style={{ color: SEV_COLOR.high }}>{stats.highCount} high</span> ·{" "}
+              <span style={{ color: statusVar("critical") }}>{stats.critCount} critical</span> ·{" "}
+              <span style={{ color: statusVar("high") }}>{stats.highCount} high</span> ·{" "}
               {stats.totalFlagged} total flagged
-            </div>
-          </div>
-        </div>
-        <div style={styles.statsRow}>
-          <StatCard label="Flagged" value={stats.totalFlagged.toString()} accent="#f97316" />
-          <StatCard label="Critical" value={stats.critCount.toString()} accent="#ef4444" />
-          <StatCard label="At-Risk Value" value={`$${(stats.totalAmount / 1000).toFixed(0)}k`} accent="#eab308" />
-          <StatCard label="Cards Involved" value={stats.uniqueCards.toString()} accent="#6366f1" />
-        </div>
-      </div>
+            </p>
+          </header>
 
-      {/* Body */}
-      <div style={styles.body}>
-        {/* Left: Feed */}
-        <div style={styles.feedCol}>
-          {/* Filters */}
-          <div style={styles.filterBar}>
-            <input
-              style={styles.searchInput}
-              placeholder="Search merchant, city, category…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div style={styles.filterChips}>
-              {(["all", "critical", "high", "medium", "low"] as const).map((f) => (
-                <button
-                  key={f}
-                  style={{
-                    ...styles.chip,
-                    ...(filter === f ? { background: f === "all" ? "#3b82f6" : SEV_COLOR[f], color: "#fff", borderColor: "transparent" } : {}),
-                  }}
-                  onClick={() => setFilter(f)}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-            <select
-              style={styles.cardSelect}
-              value={cardFilter}
-              onChange={(e) => setCardFilter(e.target.value)}
-            >
-              <option value="all">All cards</option>
-              {uniqueCards.map((c) => (
-                <option key={c} value={c}>
-                  {CARD_NAMES[c] ?? c}
-                </option>
-              ))}
-            </select>
+          <div style={styles.statsRow}>
+            <StatCard label="Flagged" value={stats.totalFlagged.toString()} accent="var(--status-high)" />
+            <StatCard label="Critical" value={stats.critCount.toString()} accent="var(--status-critical)" />
+            <StatCard label="At-Risk Value" value={`$${(stats.totalAmount / 1000).toFixed(0)}k`} accent="var(--status-medium)" />
+            <StatCard label="Cards Involved" value={stats.uniqueCards.toString()} accent="var(--accent)" />
           </div>
 
-          <div style={styles.feedCount}>
-            {displayResults.length} violations · sorted by risk score
-          </div>
+          <div className="compliance-panel" style={{ marginTop: 24 }}>
+            <div className="compliance-panel__body">
+              {/* Left: Feed */}
+              <div className="compliance-feed">
+                {/* Filters */}
+                <div style={styles.filterBar}>
+                  <input
+                    style={styles.searchInput}
+                    placeholder="Search merchant, city, category…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <div style={styles.filterChips}>
+                    {(["all", "critical", "high", "medium", "low"] as const).map((f) => (
+                      <button
+                        key={f}
+                        className={filter === f ? `filter-chip is-active--${f}` : "filter-chip"}
+                        style={styles.chip}
+                        onClick={() => setFilter(f)}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  <select
+                    style={styles.cardSelect}
+                    value={cardFilter}
+                    onChange={(e) => setCardFilter(e.target.value)}
+                  >
+                    <option value="all">All cards</option>
+                    {uniqueCards.map((c) => (
+                      <option key={c} value={c}>
+                        {CARD_NAMES[c] ?? c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-          {/* Violation Feed */}
-          <div style={styles.feed}>
-            {displayResults.slice(0, 200).map((r) => (
-              <ViolationCard
-                key={r.tx.id}
-                result={r}
-                isSelected={selected?.tx.id === r.tx.id}
-                onClick={() => selectResult(r)}
-              />
-            ))}
-            {displayResults.length === 0 && (
-              <div style={styles.emptyFeed}>No violations match the current filters.</div>
-            )}
-          </div>
-        </div>
+                <div style={styles.feedCount}>
+                  {displayResults.length} violations · sorted by risk score
+                </div>
 
-        {/* Right: Detail Panel */}
-        <div style={styles.detailCol}>
-          {selected ? (
-            <DetailPanel
-              result={selected}
-              aiReasoning={aiReasoning}
-              aiLoading={aiLoading}
-            />
-          ) : (
-            <div style={styles.emptyDetail}>
-              <div style={styles.emptyDetailIcon}>⚑</div>
-              <div style={styles.emptyDetailText}>Select a violation to investigate</div>
-              <div style={styles.emptyDetailSub}>
-                AI context, linked transactions, and recommended actions appear here.
+                {/* Violation Feed */}
+                <div style={styles.feed}>
+                  {displayResults.slice(0, 200).map((r) => (
+                    <ViolationCard
+                      key={r.tx.id}
+                      result={r}
+                      isSelected={selected?.tx.id === r.tx.id}
+                      onClick={() => selectResult(r)}
+                    />
+                  ))}
+                  {displayResults.length === 0 && (
+                    <div style={styles.emptyFeed}>No violations match the current filters.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Detail Panel */}
+              <div className="compliance-detail">
+                {selected ? (
+                  <DetailPanel
+                    result={selected}
+                    aiReasoning={aiReasoning}
+                    aiLoading={aiLoading}
+                  />
+                ) : (
+                  <div style={styles.emptyDetail}>
+                    <div style={styles.emptyDetailIcon}>⚑</div>
+                    <div style={styles.emptyDetailText}>Select a violation to investigate</div>
+                    <div style={styles.emptyDetailSub}>
+                      AI context, linked transactions, and recommended actions appear here.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -242,14 +242,15 @@ function ViolationCard({
   onClick: () => void;
 }) {
   const sev = result.overallSeverity;
-  const accent = sev ? SEV_COLOR[sev] : "#6b7280";
+  const accent = sev ? statusVar(sev) : statusVar("low");
   return (
     <button
+      className={isSelected ? "violation-card is-selected" : "violation-card"}
       style={{
         ...styles.violationCard,
         borderLeftColor: accent,
-        background: isSelected ? "rgba(59,130,246,0.07)" : "rgba(255,255,255,0.03)",
-        outline: isSelected ? `1px solid rgba(59,130,246,0.3)` : "none",
+        background: isSelected ? undefined : styles.violationCard.background,
+        outline: isSelected ? undefined : "none",
       }}
       onClick={onClick}
     >
@@ -298,7 +299,7 @@ function DetailPanel({
 }) {
   const { tx, violations, mccLabel, riskScore: score, status } = result;
   const sev = result.overallSeverity;
-  const accent = sev ? SEV_COLOR[sev] : "#6b7280";
+  const accent = sev ? statusVar(sev) : statusVar("low");
 
   return (
     <div style={styles.detail}>
@@ -324,11 +325,11 @@ function DetailPanel({
               style={{
                 ...styles.riskBarFillWide,
                 width: `${score}%`,
-                background: score >= 80 ? SEV_COLOR.critical : score >= 50 ? SEV_COLOR.high : score >= 25 ? SEV_COLOR.medium : "#22c55e",
+                background: riskColor(score),
               }}
             />
           </div>
-          <span style={{ ...styles.riskNumLarge, color: score >= 80 ? SEV_COLOR.critical : score >= 50 ? SEV_COLOR.high : "#eab308" }}>
+          <span style={{ ...styles.riskNumLarge, color: riskColor(score) }}>
             {score}
           </span>
         </div>
@@ -354,10 +355,10 @@ function DetailPanel({
           {violations.map((v) => (
             <div
               key={v.ruleId}
-              style={{ ...styles.violationItem, borderLeftColor: SEV_COLOR[v.severity] ?? "#6b7280" }}
+              style={{ ...styles.violationItem, borderLeftColor: statusVar(v.severity) }}
             >
               <div style={styles.viHeader}>
-                <span style={{ ...styles.viTitle, color: SEV_COLOR[v.severity] }}>{v.ruleTitle}</span>
+                <span style={{ ...styles.viTitle, color: statusVar(v.severity) }}>{v.ruleTitle}</span>
                 <span style={styles.viConf}>{Math.round(v.confidence * 100)}% confidence</span>
               </div>
               <div style={styles.viReason}>{v.reason}</div>
@@ -390,7 +391,7 @@ function DetailPanel({
           ) : aiReasoning ? (
             <p style={styles.aiText}>{aiReasoning}</p>
           ) : (
-            <p style={{ ...styles.aiText, color: "rgba(255,255,255,0.3)" }}>
+            <p style={{ ...styles.aiText, color: "var(--shell-text-muted)" }}>
               AI reasoning unavailable — check ANTHROPIC_API_KEY.
             </p>
           )}
@@ -401,7 +402,7 @@ function DetailPanel({
       <div style={styles.actions}>
         <button style={styles.btnDismiss}>Dismiss</button>
         <button style={styles.btnEscalate}>Escalate to Manager</button>
-        <button style={{ ...styles.btnFlag, background: sev === "critical" ? SEV_COLOR.critical : SEV_COLOR.high }}>
+        <button style={{ ...styles.btnFlag, background: sev === "critical" ? statusVar("critical") : statusVar("high") }}>
           Flag for Review
         </button>
       </div>
@@ -421,65 +422,14 @@ function TxField({ label, value }: { label: string; value: string }) {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = {
-  root: {
-    minHeight: "100vh",
-    background: "#0d0f14",
-    color: "#e2e8f0",
-    fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
-    display: "flex",
-    flexDirection: "column" as const,
-  },
-  header: {
-    background: "rgba(255,255,255,0.03)",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    padding: "16px 24px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 24,
-    flexWrap: "wrap" as const,
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 16,
-  },
-  backLink: {
-    color: "rgba(255,255,255,0.35)",
-    textDecoration: "none",
-    fontSize: 12,
-    marginTop: 4,
-    whiteSpace: "nowrap" as const,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 600,
-    color: "#f1f5f9",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  brimMark: {
-    color: "#2f5fd0",
-    fontWeight: 800,
-    letterSpacing: "-0.03em",
-  },
-  headerDivider: {
-    color: "rgba(255,255,255,0.2)",
-    fontWeight: 300,
-  },
-  headerSub: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.4)",
-    marginTop: 4,
-  },
   statsRow: {
     display: "flex",
-    gap: 4,
+    gap: 8,
+    flexWrap: "wrap" as const,
   },
   statCard: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.07)",
+    background: "var(--fill-0)",
+    border: "1px solid var(--shell-border)",
     borderRadius: 8,
     padding: "10px 16px",
     minWidth: 90,
@@ -492,39 +442,25 @@ const styles = {
   },
   statLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.4)",
+    color: "var(--shell-text-muted)",
     textTransform: "uppercase" as const,
     letterSpacing: "0.06em",
     marginTop: 2,
   },
-  body: {
-    display: "flex",
-    flex: 1,
-    minHeight: 0,
-    height: "calc(100vh - 81px)",
-  },
-  feedCol: {
-    width: 420,
-    flexShrink: 0,
-    borderRight: "1px solid rgba(255,255,255,0.07)",
-    display: "flex",
-    flexDirection: "column" as const,
-    overflow: "hidden",
-  },
   filterBar: {
     padding: "12px 16px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: "1px solid var(--shell-border-soft)",
     display: "flex",
     flexDirection: "column" as const,
     gap: 8,
   },
   searchInput: {
     width: "100%",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
+    background: "var(--shell-input-bg)",
+    border: "1px solid var(--shell-border)",
     borderRadius: 6,
     padding: "7px 12px",
-    color: "#e2e8f0",
+    color: "var(--shell-text-primary)",
     fontSize: 13,
     outline: "none",
     boxSizing: "border-box" as const,
@@ -537,20 +473,20 @@ const styles = {
   chip: {
     padding: "3px 10px",
     borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.15)",
+    border: "1px solid var(--shell-border)",
     background: "transparent",
-    color: "rgba(255,255,255,0.6)",
+    color: "var(--shell-text-secondary)",
     fontSize: 11,
     cursor: "pointer",
     transition: "all 0.15s",
     textTransform: "capitalize" as const,
   },
   cardSelect: {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
+    background: "var(--shell-input-bg)",
+    border: "1px solid var(--shell-border)",
     borderRadius: 6,
     padding: "5px 8px",
-    color: "rgba(255,255,255,0.7)",
+    color: "var(--shell-text-secondary)",
     fontSize: 12,
     outline: "none",
     width: "100%",
@@ -558,8 +494,8 @@ const styles = {
   feedCount: {
     padding: "6px 16px",
     fontSize: 11,
-    color: "rgba(255,255,255,0.3)",
-    borderBottom: "1px solid rgba(255,255,255,0.05)",
+    color: "var(--shell-text-muted)",
+    borderBottom: "1px solid var(--shell-border-soft)",
   },
   feed: {
     overflowY: "auto" as const,
@@ -571,15 +507,18 @@ const styles = {
   },
   emptyFeed: {
     textAlign: "center" as const,
-    color: "rgba(255,255,255,0.3)",
+    color: "var(--shell-text-faint)",
     fontSize: 13,
     padding: "40px 20px",
   },
   violationCard: {
     width: "100%",
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderLeft: "3px solid",
+    background: "var(--fill-0)",
+    borderTop: "1px solid var(--shell-border-soft)",
+    borderRight: "1px solid var(--shell-border-soft)",
+    borderBottom: "1px solid var(--shell-border-soft)",
+    borderLeftWidth: 3,
+    borderLeftStyle: "solid" as const,
     borderRadius: 8,
     padding: "10px 12px",
     cursor: "pointer",
@@ -595,7 +534,7 @@ const styles = {
   vcMerchant: {
     fontSize: 13,
     fontWeight: 600,
-    color: "#f1f5f9",
+    color: "var(--shell-text-primary)",
     flex: 1,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -615,11 +554,11 @@ const styles = {
   },
   vcMetaItem: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.35)",
+    color: "var(--shell-text-muted)",
   },
   vcMetaDot: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.2)",
+    color: "var(--shell-text-faint)",
   },
   vcFooter: {
     display: "flex",
@@ -636,8 +575,8 @@ const styles = {
   },
   vcViolChip: {
     fontSize: 9,
-    color: "rgba(255,255,255,0.45)",
-    background: "rgba(255,255,255,0.06)",
+    color: "var(--shell-text-secondary)",
+    background: "var(--shell-chip-bg)",
     borderRadius: 4,
     padding: "2px 5px",
   },
@@ -649,7 +588,7 @@ const styles = {
   },
   vcRiskNum: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.4)",
+    color: "var(--shell-text-muted)",
     fontVariantNumeric: "tabular-nums",
     width: 20,
     textAlign: "right" as const,
@@ -657,7 +596,7 @@ const styles = {
   riskBarTrack: {
     width: 48,
     height: 3,
-    background: "rgba(255,255,255,0.08)",
+    background: "var(--shell-track-bg)",
     borderRadius: 2,
     overflow: "hidden",
   },
@@ -666,42 +605,6 @@ const styles = {
     borderRadius: 2,
     transition: "width 0.3s",
   },
-  badge: {
-    fontSize: 10,
-    fontWeight: 600,
-    padding: "2px 7px",
-    borderRadius: 4,
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.05em",
-    flexShrink: 0,
-  },
-  badgeClear: {
-    fontSize: 10,
-    fontWeight: 500,
-    padding: "2px 7px",
-    borderRadius: 4,
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.05em",
-    color: "#22c55e",
-    background: "rgba(34,197,94,0.1)",
-  },
-  pulse: {
-    position: "absolute" as const,
-    top: -2,
-    right: -2,
-    width: 6,
-    height: 6,
-    borderRadius: "50%",
-    background: "#ef4444",
-    animation: "pulse 1.5s infinite",
-  },
-  // Detail panel
-  detailCol: {
-    flex: 1,
-    overflowY: "auto" as const,
-    display: "flex",
-    flexDirection: "column" as const,
-  },
   emptyDetail: {
     flex: 1,
     display: "flex",
@@ -709,21 +612,21 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
-    color: "rgba(255,255,255,0.2)",
+    color: "var(--shell-text-faint)",
     padding: 40,
   },
   emptyDetailIcon: {
     fontSize: 48,
-    color: "rgba(255,255,255,0.1)",
+    color: "var(--shell-text-ghost)",
   },
   emptyDetailText: {
     fontSize: 16,
     fontWeight: 500,
-    color: "rgba(255,255,255,0.3)",
+    color: "var(--shell-text-muted)",
   },
   emptyDetailSub: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.2)",
+    color: "var(--shell-text-faint)",
     textAlign: "center" as const,
     maxWidth: 300,
   },
@@ -734,13 +637,14 @@ const styles = {
     gap: 20,
   },
   detailHeader: {
-    borderLeft: "4px solid",
+    borderLeftWidth: 4,
+    borderLeftStyle: "solid" as const,
     paddingLeft: 16,
   },
   detailMerchant: {
     fontSize: 22,
     fontWeight: 700,
-    color: "#f8fafc",
+    color: "var(--shell-text-primary)",
     lineHeight: 1.2,
   },
   detailAmount: {
@@ -759,17 +663,17 @@ const styles = {
   },
   detailMetaItem: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.4)",
+    color: "var(--shell-text-muted)",
   },
   riskSection: {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.07)",
+    background: "var(--fill-1)",
+    border: "1px solid var(--shell-border-soft)",
     borderRadius: 8,
     padding: "12px 16px",
   },
   riskLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.4)",
+    color: "var(--shell-text-muted)",
     textTransform: "uppercase" as const,
     letterSpacing: "0.08em",
     marginBottom: 8,
@@ -782,7 +686,7 @@ const styles = {
   riskBarTrackWide: {
     flex: 1,
     height: 6,
-    background: "rgba(255,255,255,0.08)",
+    background: "var(--shell-track-bg)",
     borderRadius: 3,
     overflow: "hidden",
   },
@@ -804,20 +708,20 @@ const styles = {
     gap: 12,
   },
   txField: {
-    background: "rgba(255,255,255,0.03)",
+    background: "var(--fill-1)",
     borderRadius: 6,
     padding: "8px 12px",
   },
   txFieldLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.35)",
+    color: "var(--shell-text-muted)",
     textTransform: "uppercase" as const,
     letterSpacing: "0.06em",
     marginBottom: 3,
   },
   txFieldValue: {
     fontSize: 13,
-    color: "#e2e8f0",
+    color: "var(--shell-text-secondary)",
     fontVariantNumeric: "tabular-nums",
   },
   section: {
@@ -827,7 +731,7 @@ const styles = {
   },
   sectionLabel: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
+    color: "var(--shell-text-muted)",
     textTransform: "uppercase" as const,
     letterSpacing: "0.08em",
     display: "flex",
@@ -835,7 +739,7 @@ const styles = {
     gap: 8,
   },
   sectionCount: {
-    background: "rgba(255,255,255,0.08)",
+    background: "var(--shell-chip-bg)",
     borderRadius: 10,
     padding: "1px 6px",
     fontSize: 10,
@@ -846,9 +750,12 @@ const styles = {
     gap: 8,
   },
   violationItem: {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderLeft: "3px solid",
+    background: "var(--fill-0)",
+    borderTop: "1px solid var(--shell-border-soft)",
+    borderRight: "1px solid var(--shell-border-soft)",
+    borderBottom: "1px solid var(--shell-border-soft)",
+    borderLeftWidth: 3,
+    borderLeftStyle: "solid" as const,
     borderRadius: 6,
     padding: "10px 14px",
   },
@@ -865,31 +772,31 @@ const styles = {
   },
   viConf: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.35)",
+    color: "var(--shell-text-muted)",
   },
   viReason: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
+    color: "var(--shell-text-secondary)",
     lineHeight: 1.4,
   },
   viRec: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.35)",
+    color: "var(--shell-text-muted)",
     marginTop: 4,
     fontStyle: "italic",
   },
   viLinked: {
     fontSize: 10,
-    color: "rgba(99,102,241,0.8)",
+    color: "var(--accent-soft)",
     marginTop: 4,
-    background: "rgba(99,102,241,0.08)",
+    background: "var(--shell-accent-surface)",
     borderRadius: 4,
     padding: "2px 6px",
     display: "inline-block",
   },
   aiSection: {
-    background: "rgba(47,95,208,0.08)",
-    border: "1px solid rgba(47,95,208,0.25)",
+    background: "var(--shell-accent-surface)",
+    border: "1px solid var(--shell-accent-border)",
     borderRadius: 10,
     overflow: "hidden",
   },
@@ -898,21 +805,21 @@ const styles = {
     alignItems: "center",
     gap: 8,
     padding: "10px 16px",
-    borderBottom: "1px solid rgba(47,95,208,0.15)",
+    borderBottom: "1px solid var(--shell-accent-border-soft)",
   },
   aiIcon: {
-    color: "#6e92e6",
+    color: "var(--accent-soft)",
     fontSize: 14,
   },
   aiLabel: {
     fontSize: 12,
     fontWeight: 600,
-    color: "#6e92e6",
+    color: "var(--accent-soft)",
     flex: 1,
   },
   aiSpinner: {
     fontSize: 11,
-    color: "rgba(110,146,230,0.6)",
+    color: "var(--accent-soft)",
     animation: "pulse 1s infinite",
   },
   aiBody: {
@@ -921,7 +828,7 @@ const styles = {
   },
   aiText: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
+    color: "var(--shell-text-secondary)",
     lineHeight: 1.6,
     margin: 0,
   },
@@ -932,7 +839,7 @@ const styles = {
   },
   aiSkeletonLine: {
     height: 12,
-    background: "rgba(255,255,255,0.07)",
+    background: "var(--shell-chip-bg)",
     borderRadius: 4,
     animation: "pulse 1.2s ease-in-out infinite",
   },
@@ -945,20 +852,20 @@ const styles = {
   btnDismiss: {
     flex: 1,
     padding: "9px 12px",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
+    background: "var(--fill-0)",
+    border: "1px solid var(--shell-border)",
     borderRadius: 8,
-    color: "rgba(255,255,255,0.6)",
+    color: "var(--shell-text-secondary)",
     fontSize: 13,
     cursor: "pointer",
   },
   btnEscalate: {
     flex: 1,
     padding: "9px 12px",
-    background: "rgba(99,102,241,0.15)",
-    border: "1px solid rgba(99,102,241,0.3)",
+    background: "var(--shell-accent-surface)",
+    border: "1px solid var(--shell-accent-border)",
     borderRadius: 8,
-    color: "#818cf8",
+    color: "var(--accent-ink)",
     fontSize: 13,
     cursor: "pointer",
   },
@@ -967,7 +874,7 @@ const styles = {
     padding: "9px 12px",
     borderRadius: 8,
     border: "none",
-    color: "#fff",
+    color: "var(--on-accent)",
     fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
