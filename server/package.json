@@ -1,19 +1,21 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "TrailBlazer AI Pre-Approval Workflow API",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "node --watch index.js",
-    "start": "node index.js"
+    "parse": "node scripts/1_parseTransactions.js",
+    "enrich": "node scripts/2_enrich.js",
+    "start": "node server.js",
+    "pipeline": "npm run parse && npm run enrich"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^5.2.1"
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "xlsx": "^0.18.5"
   }
 }

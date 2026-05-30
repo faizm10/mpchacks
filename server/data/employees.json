@@ -1,0 +1,6 @@
+[
+  { "id": "emp_001", "name": "Sarah Ahmed", "department": "Operations" },
+  { "id": "emp_002", "name": "Daniel Kim", "department": "Logistics" },
+  { "id": "emp_003", "name": "Maya Chen", "department": "Finance" },
+  { "id": "emp_004", "name": "Omar Khan", "department": "Sales" }
+]

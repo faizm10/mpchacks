@@ -1,0 +1,6 @@
+[
+  { "id": "dept_001", "name": "Operations", "monthlyBudget": 25000 },
+  { "id": "dept_002", "name": "Logistics", "monthlyBudget": 30000 },
+  { "id": "dept_003", "name": "Finance", "monthlyBudget": 20000 },
+  { "id": "dept_004", "name": "Sales", "monthlyBudget": 22000 }
+]
