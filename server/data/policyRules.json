@@ -1,0 +1,41 @@
+[
+  {
+    "id": "rule_001",
+    "name": "Pre-authorization required over $50",
+    "type": "approval_threshold",
+    "amountThreshold": 50,
+    "severity": "medium",
+    "description": "All expenses over $50 must be pre-authorized by a manager."
+  },
+  {
+    "id": "rule_002",
+    "name": "Receipt required",
+    "type": "receipt_required",
+    "severity": "medium",
+    "description": "Receipts are required before expenses are reimbursed."
+  },
+  {
+    "id": "rule_003",
+    "name": "Alcohol restriction",
+    "type": "restricted_category",
+    "category": "Alcohol / Bar",
+    "severity": "high",
+    "description": "Alcohol is not permitted unless dining with a customer."
+  },
+  {
+    "id": "rule_004",
+    "name": "Traffic and parking tickets not reimbursed",
+    "type": "restricted_description",
+    "keywords": ["ticket", "fine", "traffic violation"],
+    "severity": "high",
+    "description": "Traffic and parking tickets are not reimbursed."
+  },
+  {
+    "id": "rule_005",
+    "name": "Possible split transaction",
+    "type": "split_transaction",
+    "amountThreshold": 50,
+    "severity": "high",
+    "description": "Multiple same-day transactions may be split to avoid pre-authorization."
+  }
+]
