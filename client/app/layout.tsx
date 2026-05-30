@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Caveat, IBM_Plex_Mono } from "next/font/google";
+import "../styles/tokens.css";
+import "./compliance.css";
 import "./globals.css";
 
 const caveat = Caveat({
