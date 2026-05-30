@@ -16,10 +16,6 @@ function statusVar(sev: Severity | string): string {
   return `var(--status-${sev})`;
 }
 
-function statusBgVar(sev: Severity | string): string {
-  return `var(--status-${sev}-bg)`;
-}
-
 function riskColor(score: number): string {
   if (score >= 80) return "var(--status-critical)";
   if (score >= 50) return "var(--status-high)";
