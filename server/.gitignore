@@ -1,0 +1,76 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+out/
+target/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# Java
+*.class
+*.jar
+*.war
+.gradle/
+bin/
+
+# .NET
+bin/
+obj/
+
+# Rust
+target/
+Cargo.lock
+
+# Go
+bin/
+pkg/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.rar
+
+# Generated files
+*.generated.*
