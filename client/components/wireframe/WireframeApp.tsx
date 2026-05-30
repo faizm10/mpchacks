@@ -27,6 +27,7 @@ import {
   SecError,
 } from "./screens-states";
 import AppRail from "./AppRail";
+import { Button } from "@/components/ui/button";
 
 type SectionItem = {
   k: string;
@@ -117,9 +118,9 @@ export default function WireframeApp() {
             }}
           >
             {idx > 0 ? (
-              <button type="button" className="wbtn" onClick={() => go(FLAT[idx - 1].k)}>
+              <Button type="button" className="wbtn" onClick={() => go(FLAT[idx - 1].k)}>
                 ← {FLAT[idx - 1].label}
-              </button>
+              </Button>
             ) : (
               <span />
             )}
@@ -127,9 +128,9 @@ export default function WireframeApp() {
               {cur.n} / 16
             </span>
             {idx < FLAT.length - 1 ? (
-              <button type="button" className="wbtn wbtn--p" onClick={() => go(FLAT[idx + 1].k)}>
+              <Button type="button" className="wbtn wbtn--p" onClick={() => go(FLAT[idx + 1].k)}>
                 {FLAT[idx + 1].label} →
-              </button>
+              </Button>
             ) : (
               <span />
             )}
