@@ -1,0 +1,79 @@
+/* ============================================================
+   BRIM — Shared semantic color tokens
+   Used by wireframe (/) and compliance (/compliance)
+   ============================================================ */
+
+:root {
+  /* ---------- Accent (blueprint ink) ---------- */
+  --accent: #2f5fd0;
+  --accent-soft: #6e92e6;
+  --accent-ink: #22418f;
+  --accent-muted: #33508f;
+  --accent-tint: #e7edfb;
+  --accent-tint-2: #dbe5fa;
+  --on-accent: #ffffff;
+  --on-accent-muted: #cfdcff;
+
+  /* Aliases for existing wireframe names */
+  --ink-marker: var(--accent);
+  --ink-marker-soft: var(--accent-soft);
+  --marker-tint: var(--accent-tint);
+  --marker-tint-2: var(--accent-tint-2);
+
+  /* ---------- Status / severity ---------- */
+  --status-critical: #cf4436;
+  --status-critical-bg: rgba(207, 68, 54, 0.12);
+  --status-high: #d97706;
+  --status-high-bg: rgba(217, 119, 6, 0.12);
+  --status-medium: #ca8a04;
+  --status-medium-bg: rgba(202, 138, 4, 0.12);
+  --status-low: #6b7280;
+  --status-low-bg: rgba(107, 114, 128, 0.1);
+  --status-positive: #15875a;
+  --status-positive-bg: rgba(21, 135, 90, 0.12);
+  --status-live: var(--status-critical);
+
+  /* ---------- Rail chrome (dark left nav) ---------- */
+  --rail-bg: #22211e;
+  --rail-border: #000000;
+  --rail-divider: #3a3935;
+  --rail-text: #cfcdc6;
+  --rail-text-muted: #807e77;
+  --rail-text-faint: #8f8d86;
+  --rail-num: #7f7d76;
+  --rail-hover-bg: #2f2e2a;
+  --rail-text-active: var(--on-accent);
+  --device-frame: var(--rail-bg);
+
+  /* ---------- Compliance surfaces (wireframe canvas) ---------- */
+  --shell-bg: transparent;
+  --shell-surface: var(--fill-0);
+  --shell-surface-2: var(--fill-1);
+  --shell-border: var(--line);
+  --shell-border-soft: var(--line-soft);
+  --shell-border-faint: var(--line-soft);
+  --shell-text-primary: var(--ink);
+  --shell-text-secondary: var(--ink-soft);
+  --shell-text-muted: var(--muted);
+  --shell-text-faint: var(--faint);
+  --shell-text-dim: var(--faint);
+  --shell-text-ghost: #d5d3cc;
+  --shell-accent-surface: var(--accent-tint);
+  --shell-accent-border: var(--accent-tint-2);
+  --shell-accent-border-soft: var(--marker-tint-2);
+  --shell-selected-bg: var(--accent-tint);
+  --shell-selected-outline: var(--accent-soft);
+  --shell-escalate-bg: var(--accent-tint);
+  --shell-escalate-border: var(--accent-tint-2);
+  --shell-escalate-text: var(--accent-ink);
+  --shell-input-bg: var(--fill-0);
+  --shell-chip-bg: var(--fill-1);
+  --shell-track-bg: var(--fill-2);
+
+  /* ---------- Investigation sketch grid (forensic pad) ---------- */
+  --sketch-paper: var(--paper);
+  --sketch-cell: 20px;
+  --sketch-major: 100px;
+  --sketch-grid-minor: rgba(72, 98, 132, 0.09);
+  --sketch-grid-major: rgba(72, 98, 132, 0.17);
+}
