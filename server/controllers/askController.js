@@ -1,3 +1,5 @@
+const { parseUserQuery } = require('../utils/queryParser');
+
 function askHandler(req, res) {
   const { message = '', conversationId = null } = req.body || {};
 
@@ -7,17 +9,21 @@ function askHandler(req, res) {
     });
   }
 
+  const parsed = parseUserQuery(message);
+
   return res.json({
     summary: 'Marketing spent $18,420 on software last quarter.',
     chartType: 'bar',
     chartData: [],
     tableData: [],
     context: {
-      department: 'Marketing',
-      category: 'Software',
-      dateRange: 'last_quarter',
-      metric: 'total_spend',
+      department: parsed.department,
+      category: parsed.category,
+      dateRange: parsed.dateRange,
+      metric: parsed.intent,
+      groupBy: parsed.groupBy,
     },
+    parsedQuery: parsed,
     followUps: [
       'Compare with Engineering',
       'Break down by merchant',
