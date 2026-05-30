@@ -400,9 +400,9 @@ function DetailPanel({
 
       {/* Actions */}
       <div style={styles.actions}>
-        <button style={styles.btnDismiss}>Dismiss</button>
-        <button style={styles.btnEscalate}>Escalate to Manager</button>
-        <button style={{ ...styles.btnFlag, background: sev === "critical" ? statusVar("critical") : statusVar("high") }}>
+        <button className="action-btn action-btn--dismiss" style={styles.btnDismiss}>Dismiss</button>
+        <button className="action-btn action-btn--escalate" style={styles.btnEscalate}>Escalate to Manager</button>
+        <button className="action-btn action-btn--flag" style={{ ...styles.btnFlag, background: sev === "critical" ? statusVar("critical") : statusVar("high") }}>
           Flag for Review
         </button>
       </div>
@@ -575,10 +575,12 @@ const styles = {
   },
   vcViolChip: {
     fontSize: 9,
+    fontWeight: 500,
     color: "var(--shell-text-secondary)",
     background: "var(--shell-chip-bg)",
-    borderRadius: 4,
-    padding: "2px 5px",
+    borderRadius: 5,
+    padding: "2px 6px",
+    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--shell-text-faint) 30%, transparent)",
   },
   vcRisk: {
     display: "flex",
@@ -595,15 +597,17 @@ const styles = {
   },
   riskBarTrack: {
     width: 48,
-    height: 3,
+    height: 4,
     background: "var(--shell-track-bg)",
-    borderRadius: 2,
+    borderRadius: 3,
     overflow: "hidden",
+    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--shell-text-faint) 18%, transparent)",
   },
   riskBarFill: {
     height: "100%",
-    borderRadius: 2,
-    transition: "width 0.3s",
+    borderRadius: 3,
+    transition: "width 0.3s ease",
+    boxShadow: "inset 0 -1px 1px rgba(0, 0, 0, 0.12)",
   },
   emptyDetail: {
     flex: 1,
@@ -668,8 +672,9 @@ const styles = {
   riskSection: {
     background: "var(--fill-1)",
     border: "1px solid var(--shell-border-soft)",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: "12px 16px",
+    boxShadow: "var(--shadow-card)",
   },
   riskLabel: {
     fontSize: 10,
@@ -685,15 +690,17 @@ const styles = {
   },
   riskBarTrackWide: {
     flex: 1,
-    height: 6,
+    height: 7,
     background: "var(--shell-track-bg)",
-    borderRadius: 3,
+    borderRadius: 4,
     overflow: "hidden",
+    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--shell-text-faint) 16%, transparent)",
   },
   riskBarFillWide: {
     height: "100%",
-    borderRadius: 3,
+    borderRadius: 4,
     transition: "width 0.4s ease",
+    boxShadow: "inset 0 -1px 1px rgba(0, 0, 0, 0.14)",
   },
   riskNumLarge: {
     fontSize: 20,
@@ -709,8 +716,9 @@ const styles = {
   },
   txField: {
     background: "var(--fill-1)",
-    borderRadius: 6,
-    padding: "8px 12px",
+    borderRadius: 8,
+    padding: "9px 13px",
+    boxShadow: "inset 0 0 0 1px var(--shell-border-soft)",
   },
   txFieldLabel: {
     fontSize: 10,
@@ -756,8 +764,9 @@ const styles = {
     borderBottom: "1px solid var(--shell-border-soft)",
     borderLeftWidth: 3,
     borderLeftStyle: "solid" as const,
-    borderRadius: 6,
-    padding: "10px 14px",
+    borderRadius: 8,
+    padding: "11px 14px",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
   },
   viHeader: {
     display: "flex",
@@ -799,6 +808,7 @@ const styles = {
     border: "1px solid var(--shell-accent-border)",
     borderRadius: 10,
     overflow: "hidden",
+    boxShadow: "var(--shadow-card)",
   },
   aiHeader: {
     display: "flex",
@@ -867,6 +877,7 @@ const styles = {
     borderRadius: 8,
     color: "var(--accent-ink)",
     fontSize: 13,
+    fontWeight: 500,
     cursor: "pointer",
   },
   btnFlag: {
@@ -878,5 +889,6 @@ const styles = {
     fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
+    boxShadow: "0 4px 12px -5px rgba(0, 0, 0, 0.4)",
   },
 };
