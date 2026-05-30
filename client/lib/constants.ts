@@ -1,0 +1,25 @@
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+export const MCC_LABELS: Record<string, string> = {
+  '9399': 'Government / Permits',
+  '5541': 'Fuel',
+  '7542': 'Car Wash',
+  '4816': 'Online / Amazon',
+  '5542': 'Auto Fuel',
+  '4784': 'Tolls / Bridges',
+  '5046': 'Commercial Equipment',
+  '5533': 'Auto Parts',
+  '7538': 'Auto Repair',
+  '4121': 'Taxi / Rideshare',
+  '5812': 'Restaurants',
+  '7011': 'Hotels',
+  '5300': 'Wholesale Club',
+  '5085': 'Industrial Supplies',
+  '8220': 'Education / Permits',
+  '5200': 'Hardware Store',
+  '5532': 'Tire Store',
+  '5661': 'Shoe Store',
+  '5818': 'Digital / Software',
+  '5947': 'Gift Shop',
+  '5992': 'Florist',
+}
