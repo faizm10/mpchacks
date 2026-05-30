@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
     "parse": "node scripts/1_parseTransactions.js",
     "enrich": "node scripts/2_enrich.js",
-    "start": "node server.js",
     "pipeline": "npm run parse && npm run enrich"
   },
   "keywords": [],
