@@ -99,7 +99,7 @@ export function SecOnboarding() {
               <div className="col gap8 mt8">
                 {steps.map((s, i) => (
                   <div key={i} className="row center gap8">
-                    <div className="anote__n" style={{ background: i === 1 ? "var(--ink-marker)" : (i < 1 ? "var(--ink)" : "var(--fill-3)"), color: i <= 1 ? "#fff" : "var(--muted)" }}>{i < 1 ? "✓" : i + 1}</div>
+                    <div className="anote__n" style={{ background: i === 1 ? "var(--ink-marker)" : (i < 1 ? "var(--ink)" : "var(--fill-3)"), color: i <= 1 ? "var(--on-accent)" : "var(--muted)" }}>{i < 1 ? "✓" : i + 1}</div>
                     <span className={"fs13 " + (i === 1 ? "bb" : "muted")}>{s}</span>
                   </div>
                 ))}
