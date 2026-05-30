@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { MOCK_INBOX_ITEMS } from '../../lib/mock-data'
 
 const NAV = [
+  { href: '/dashboard', label: 'Dashboard' },
   { href: '/inbox', label: 'Inbox' },
   { href: '/chat', label: 'Chat' },
   { href: '/reports', label: 'Reports' },

@@ -5,6 +5,7 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 
 const PAGE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
   '/inbox': 'Inbox',
   '/chat': 'Ask AI',
   '/reports': 'Trip Reports',
@@ -26,7 +27,7 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <TopBar title={title} />
-        <main style={{ flex: 1, overflow: 'hidden' }}>
+        <main style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {children}
         </main>
       </div>
