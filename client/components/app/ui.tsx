@@ -120,12 +120,11 @@ export function Donut({
   format?: (n: number) => string;
 }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  let acc = 0;
   const stops = data
-    .map((d) => {
-      const start = (acc / total) * 100;
-      acc += d.value;
-      const end = (acc / total) * 100;
+    .map((d, i) => {
+      const prior = data.slice(0, i).reduce((s, x) => s + x.value, 0);
+      const start = (prior / total) * 100;
+      const end = ((prior + d.value) / total) * 100;
       return `${d.color} ${start}% ${end}%`;
     })
     .join(", ");
