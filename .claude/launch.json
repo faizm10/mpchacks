@@ -4,7 +4,7 @@
     {
       "name": "brim-client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["run", "dev", "--prefix", "client"],
       "port": 3000
     }
   ]
