@@ -1,0 +1,120 @@
+/* ============================================================
+   BRIM — Tailwind v4 + shadcn/ui integration layer
+   ------------------------------------------------------------
+   - Tailwind is imported WITHOUT preflight so it never resets
+     the existing hand-written wireframe styles.
+   - Tailwind utilities live in @layer utilities, so the
+     existing UNLAYERED css (globals/compliance/styles) always
+     wins. shadcn components style their own elements via
+     utilities + the tokens mapped below.
+   - shadcn tokens are aliased onto the existing paper/blueprint
+     palette (see tokens.css / globals.css) — no design change.
+   - IMPORTANT: shadcn intermediate tokens are namespaced with a
+     --sc- prefix so they NEVER collide with existing palette
+     tokens (--accent, --muted, --radius already exist and are
+     used site-wide). Only @theme inline --color-* / --radius-*
+     names are what shadcn component classes consume.
+   ============================================================ */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------- shadcn tokens → existing palette (light) ---------- */
+:root {
+  --sc-background: var(--paper);
+  --sc-foreground: var(--ink);
+
+  --sc-card: var(--fill-0);
+  --sc-card-foreground: var(--ink);
+
+  --sc-popover: var(--fill-0);
+  --sc-popover-foreground: var(--ink);
+
+  /* primary = blueprint ink blue (existing --accent) */
+  --sc-primary: var(--accent);
+  --sc-primary-foreground: var(--on-accent);
+
+  --sc-secondary: var(--fill-1);
+  --sc-secondary-foreground: var(--ink);
+
+  /* shadcn "muted" surface ≠ palette --muted (text color) */
+  --sc-muted: var(--fill-1);
+  --sc-muted-foreground: var(--text-muted);
+
+  /* shadcn "accent" = a soft tint surface, NOT the blue accent */
+  --sc-accent: var(--accent-tint);
+  --sc-accent-foreground: var(--accent-ink);
+
+  --sc-destructive: var(--status-critical);
+  --sc-destructive-foreground: var(--on-accent);
+
+  --sc-border: var(--line);
+  --sc-input: var(--line-strong);
+  --sc-ring: var(--accent-soft);
+
+  --sc-chart-1: var(--accent);
+  --sc-chart-2: var(--status-positive);
+  --sc-chart-3: var(--status-high);
+  --sc-chart-4: var(--status-medium);
+  --sc-chart-5: var(--status-critical);
+
+  /* Sidebar maps to the dark left rail chrome */
+  --sc-sidebar: var(--rail-bg);
+  --sc-sidebar-foreground: var(--rail-text);
+  --sc-sidebar-primary: var(--accent);
+  --sc-sidebar-primary-foreground: var(--on-accent);
+  --sc-sidebar-accent: var(--rail-hover-bg);
+  --sc-sidebar-accent-foreground: var(--on-accent);
+  --sc-sidebar-border: var(--rail-divider);
+  --sc-sidebar-ring: var(--accent-soft);
+}
+
+/* ---------- expose tokens to Tailwind utilities ---------- */
+@theme inline {
+  --color-background: var(--sc-background);
+  --color-foreground: var(--sc-foreground);
+  --color-card: var(--sc-card);
+  --color-card-foreground: var(--sc-card-foreground);
+  --color-popover: var(--sc-popover);
+  --color-popover-foreground: var(--sc-popover-foreground);
+  --color-primary: var(--sc-primary);
+  --color-primary-foreground: var(--sc-primary-foreground);
+  --color-secondary: var(--sc-secondary);
+  --color-secondary-foreground: var(--sc-secondary-foreground);
+  --color-muted: var(--sc-muted);
+  --color-muted-foreground: var(--sc-muted-foreground);
+  --color-accent: var(--sc-accent);
+  --color-accent-foreground: var(--sc-accent-foreground);
+  --color-destructive: var(--sc-destructive);
+  --color-destructive-foreground: var(--sc-destructive-foreground);
+  --color-border: var(--sc-border);
+  --color-input: var(--sc-input);
+  --color-ring: var(--sc-ring);
+  --color-chart-1: var(--sc-chart-1);
+  --color-chart-2: var(--sc-chart-2);
+  --color-chart-3: var(--sc-chart-3);
+  --color-chart-4: var(--sc-chart-4);
+  --color-chart-5: var(--sc-chart-5);
+  --color-sidebar: var(--sc-sidebar);
+  --color-sidebar-foreground: var(--sc-sidebar-foreground);
+  --color-sidebar-primary: var(--sc-sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sc-sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sc-sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sc-sidebar-accent-foreground);
+  --color-sidebar-border: var(--sc-sidebar-border);
+  --color-sidebar-ring: var(--sc-sidebar-ring);
+
+  --font-sans: var(--ui);
+  --font-mono: var(--mono);
+
+  /* reuse the existing global --radius (7px) */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}

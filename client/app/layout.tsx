@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Caveat, IBM_Plex_Mono } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "../styles/tokens.css";
+import "./theme.css";
 import "./compliance.css";
 import "./globals.css";
 
@@ -27,7 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${caveat.variable} ${ibmPlexMono.variable}`}>{children}</body>
+      <body className={`${caveat.variable} ${ibmPlexMono.variable}`}>
+        <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }
