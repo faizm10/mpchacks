@@ -26,6 +26,7 @@ import {
   SecEmpty,
   SecError,
 } from "./screens-states";
+import AppRail from "./AppRail";
 
 type SectionItem = {
   k: string;
@@ -102,44 +103,7 @@ export default function WireframeApp() {
 
   return (
     <div className="app">
-      <div className="rail">
-        <div className="rail__brand">
-          <div className="rail__logo">
-            <div className="rail__mark">B</div>
-            <div className="rail__name">Brim</div>
-          </div>
-          <div className="rail__tag">Wireframe Concept</div>
-        </div>
-        <div className="rail__scroll">
-          <div className="rail__group">
-            <div className="rail__grouplabel">Live Feature</div>
-            <a
-              href="/compliance"
-              className="rail__link"
-              style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}
-            >
-              <span className="rail__num" style={{ background: "#ef4444", color: "#fff", borderRadius: 4 }}>⚑</span>
-              Policy Engine — Live
-            </a>
-          </div>
-          {SECTIONS.map((g, gi) => (
-            <div className="rail__group" key={gi}>
-              <div className="rail__grouplabel">{g.group}</div>
-              {g.items.map((it) => (
-                <button
-                  key={it.k}
-                  type="button"
-                  className={"rail__link" + (it.k === active ? " is-active" : "")}
-                  onClick={() => go(it.k)}
-                >
-                  <span className="rail__num">{it.n}</span>
-                  {it.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      <AppRail activeKey={active} />
 
       <div className="stage">
         <div className="stage__inner">
