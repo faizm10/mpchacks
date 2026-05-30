@@ -197,8 +197,8 @@ function SecApprovals() {
                 </Panel>
                 <div className="wpanel" style={{ borderColor: "var(--ink-marker)", background: "var(--marker-tint)" }}>
                   <div className="wlabel" style={{ color: "var(--ink-marker)" }}>AI recommendation <B n={4} /></div>
-                  <div className="b mt6" style={{ fontSize: 16, color: "#22418f" }}>✦ Approve</div>
-                  <p className="fs13 mt6" style={{ color: "#33508f", margin: "6px 0 0" }}>Within policy and budget. Aligns with Sarah's past conference pattern (2 YTD, all on-budget). Expected ROI consistent with prior events.</p>
+                  <div className="b mt6 text-accent-ink" style={{ fontSize: 16 }}>✦ Approve</div>
+                  <p className="fs13 mt6 text-accent-muted" style={{ margin: "6px 0 0" }}>Within policy and budget. Aligns with Sarah's past conference pattern (2 YTD, all on-budget). Expected ROI consistent with prior events.</p>
                 </div>
                 <div className="col gap8 mt12">
                   <div className="winput" style={{ minHeight: 52, alignItems: "flex-start", color: "var(--faint)" }}>Add a note (optional)…</div>
@@ -274,7 +274,7 @@ function SecReports() {
                 </Panel>
                 <div className="wpanel" style={{ borderColor: "var(--ink-marker)", background: "var(--marker-tint)" }}>
                   <div className="wlabel" style={{ color: "var(--ink-marker)" }}>Policy recommendation <B n={5} /></div>
-                  <p className="fs13" style={{ color: "#33508f", margin: "6px 0 0" }}>9 of 10 lines compliant. 1 meal needs review ($210, over per-person limit). 1 receipt missing. Recommend: approve with note.</p>
+                  <p className="fs13 text-accent-muted" style={{ margin: "6px 0 0" }}>9 of 10 lines compliant. 1 meal needs review ($210, over per-person limit). 1 receipt missing. Recommend: approve with note.</p>
                 </div>
                 <div className="wbtn wbtn--marker mt12" style={{ justifyContent: "center", width: "100%", padding: 11 }}>✓ Approve & export to accounting</div>
               </div>
