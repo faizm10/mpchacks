@@ -1,15 +1,6 @@
 const { parseUserQuery } = require('../utils/queryParser');
 const { getConversationContext, setConversationContext } = require('../utils/conversationMemory');
-
-function buildContextFromParsed(parsed) {
-  return {
-    department: parsed.department || null,
-    category: parsed.category || null,
-    dateRange: parsed.dateRange || null,
-    metric: parsed.intent || 'total_spend',
-    groupBy: parsed.groupBy || null,
-  };
-}
+const { chooseChartType } = require('../utils/chartSelector');
 
 function mergeWithPreviousContext(parsed, previousContext, message) {
   if (!previousContext) return parsed;
@@ -66,7 +57,7 @@ function askHandler(req, res) {
 
   return res.json({
     summary: 'Marketing spent $18,420 on software last quarter.',
-    chartType: mergedQuery.intent === 'compare_spend' ? 'bar' : 'bar',
+    chartType: chooseChartType(mergedQuery.intent, mergedQuery.groupBy),
     chartData: [],
     tableData: [],
     context: {
