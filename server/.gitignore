@@ -1,3 +1,14 @@
 node_modules/
 .env
 output/*.json
+
+
+# Local data inputs
+# Keep this ignored if source spreadsheets are not meant for git
+# data/dummy_data__2_.xlsx
+
+# Local exports/artifacts
+*.pdf
+
+Brim_Expense_Policy.pdf
+data/
