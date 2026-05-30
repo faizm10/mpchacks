@@ -1,6 +1,15 @@
 const { parseUserQuery } = require('../utils/queryParser');
 const { getConversationContext, setConversationContext } = require('../utils/conversationMemory');
 const { chooseChartType } = require('../utils/chartSelector');
+const {
+  getTotalSpend,
+  compareDepartmentSpend,
+  groupSpendByMonth,
+  groupSpendByMerchant,
+  getTopTransactions,
+} = require('../utils/analytics');
+const { loadTransactions } = require('../utils/transactionStore');
+const { generateAISummary } = require('../utils/aiSummary');
 
 function mergeWithPreviousContext(parsed, previousContext, message) {
   if (!previousContext) return parsed;
@@ -30,7 +39,89 @@ function mergeWithPreviousContext(parsed, previousContext, message) {
   return merged;
 }
 
-function askHandler(req, res) {
+function buildResult(transactions, query) {
+  if (query.intent === 'compare_spend' && Array.isArray(query.departments) && query.departments.length > 0) {
+    const comparison = compareDepartmentSpend(transactions, {
+      departments: query.departments,
+      category: query.category,
+      dateRange: query.dateRange,
+    });
+
+    return {
+      intent: query.intent,
+      comparison,
+      departments: query.departments,
+      category: query.category,
+      dateRange: query.dateRange,
+      metric: 'total_spend',
+    };
+  }
+
+  const total = getTotalSpend(transactions, {
+    department: query.department,
+    category: query.category,
+    dateRange: query.dateRange,
+  });
+
+  const topMerchants = groupSpendByMerchant(transactions, {
+    department: query.department,
+    category: query.category,
+    dateRange: query.dateRange,
+  })
+    .slice(0, 3)
+    .map(x => x.merchant);
+
+  return {
+    intent: query.intent,
+    total: Number(total.toFixed(2)),
+    department: query.department,
+    category: query.category,
+    dateRange: query.dateRange,
+    metric: 'total_spend',
+    topMerchants,
+  };
+}
+
+function buildChartData(transactions, query) {
+  if (query.groupBy === 'month') {
+    return groupSpendByMonth(transactions, {
+      department: query.department,
+      category: query.category,
+      dateRange: query.dateRange,
+      departments: query.departments,
+    });
+  }
+
+  if (query.groupBy === 'merchant') {
+    return groupSpendByMerchant(transactions, {
+      department: query.department,
+      category: query.category,
+      dateRange: query.dateRange,
+      departments: query.departments,
+    }).slice(0, 10);
+  }
+
+  if (query.intent === 'compare_spend' && Array.isArray(query.departments)) {
+    return compareDepartmentSpend(transactions, {
+      departments: query.departments,
+      category: query.category,
+      dateRange: query.dateRange,
+    });
+  }
+
+  return [];
+}
+
+function buildTableData(transactions, query) {
+  return getTopTransactions(transactions, {
+    department: query.department,
+    departments: query.departments,
+    category: query.category,
+    dateRange: query.dateRange,
+  }, 10);
+}
+
+async function askHandler(req, res) {
   const { message = '', conversationId = null } = req.body || {};
 
   if (!message || typeof message !== 'string') {
@@ -43,31 +134,36 @@ function askHandler(req, res) {
   const previous = getConversationContext(conversationId);
   const mergedQuery = mergeWithPreviousContext(parsed, previous?.lastContext || null, message);
 
+  const transactions = loadTransactions();
+  const result = buildResult(transactions, mergedQuery);
+  const summary = await generateAISummary(message, result);
+
   const nextContext = {
     conversationId,
     lastContext: {
       department: mergedQuery.department || (mergedQuery.departments ? mergedQuery.departments[0] : null),
       category: mergedQuery.category || null,
       dateRange: mergedQuery.dateRange || null,
-      metric: mergedQuery.metric || mergedQuery.intent || 'total_spend',
+      metric: result.metric || mergedQuery.intent || 'total_spend',
       groupBy: mergedQuery.groupBy || null,
     },
   };
   setConversationContext(conversationId, nextContext);
 
   return res.json({
-    summary: 'Marketing spent $18,420 on software last quarter.',
+    summary,
     chartType: chooseChartType(mergedQuery.intent, mergedQuery.groupBy),
-    chartData: [],
-    tableData: [],
+    chartData: buildChartData(transactions, mergedQuery),
+    tableData: buildTableData(transactions, mergedQuery),
     context: {
       department: mergedQuery.department || null,
       departments: mergedQuery.departments || undefined,
       category: mergedQuery.category || null,
       dateRange: mergedQuery.dateRange || null,
-      metric: mergedQuery.metric || mergedQuery.intent,
+      metric: result.metric,
       groupBy: mergedQuery.groupBy || null,
     },
+    computedResult: result,
     parsedQuery: mergedQuery,
     followUps: [
       'Compare with Engineering',
