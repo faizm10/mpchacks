@@ -3,6 +3,11 @@
    Mid-fi grayscale wireframe system + blue-ink spec annotations
    ============================================================ */
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 :root{
   --paper:#f3f2ef;        /* app canvas, warm near-white */
   --paper-2:#eceae6;

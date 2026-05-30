@@ -111,6 +111,17 @@ export default function WireframeApp() {
           <div className="rail__tag">Wireframe Concept</div>
         </div>
         <div className="rail__scroll">
+          <div className="rail__group">
+            <div className="rail__grouplabel">Live Feature</div>
+            <a
+              href="/compliance"
+              className="rail__link"
+              style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+            >
+              <span className="rail__num" style={{ background: "#ef4444", color: "#fff", borderRadius: 4 }}>⚑</span>
+              Policy Engine — Live
+            </a>
+          </div>
           {SECTIONS.map((g, gi) => (
             <div className="rail__group" key={gi}>
               <div className="rail__grouplabel">{g.group}</div>
