@@ -1,0 +1,142 @@
+/* Compliance engine — wireframe canvas (scoped, shares / layout) */
+
+.compliance {
+  color: var(--shell-text-secondary);
+  font-family: var(--ui);
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 80px);
+}
+
+.compliance .sec-head {
+  margin-bottom: 20px;
+}
+
+.compliance .sev-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.compliance .sev-badge--clear {
+  font-weight: 500;
+  color: var(--status-positive);
+  background: var(--status-positive-bg);
+}
+
+.compliance .sev-badge--critical {
+  color: var(--status-critical);
+  background: var(--status-critical-bg);
+}
+
+.compliance .sev-badge--high {
+  color: var(--status-high);
+  background: var(--status-high-bg);
+}
+
+.compliance .sev-badge--medium {
+  color: var(--status-medium);
+  background: var(--status-medium-bg);
+}
+
+.compliance .sev-badge--low {
+  color: var(--status-low);
+  background: var(--status-low-bg);
+}
+
+.compliance .sev-badge__pulse {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-critical);
+  animation: pulse 1.5s infinite;
+}
+
+.compliance .filter-chip.is-active--all {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.compliance .filter-chip.is-active--critical {
+  background: var(--status-critical);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.compliance .filter-chip.is-active--high {
+  background: var(--status-high);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.compliance .filter-chip.is-active--medium {
+  background: var(--status-medium);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.compliance .filter-chip.is-active--low {
+  background: var(--status-low);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+
+.compliance .violation-card.is-selected {
+  background: var(--shell-selected-bg);
+  outline: 1px solid var(--shell-selected-outline);
+}
+
+.compliance .compliance-panel {
+  background: var(--shell-surface);
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow:
+    0 0 0 1px var(--line-soft),
+    var(--shadow-card);
+  overflow: hidden;
+}
+
+.compliance .compliance-panel__body {
+  display: flex;
+  min-height: 560px;
+}
+
+.compliance .compliance-feed {
+  width: 420px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--shell-border-soft);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--sketch-paper);
+  background-image:
+    linear-gradient(to right, var(--sketch-grid-minor) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--sketch-grid-minor) 1px, transparent 1px),
+    linear-gradient(to right, var(--sketch-grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--sketch-grid-major) 1px, transparent 1px);
+  background-size:
+    var(--sketch-cell) var(--sketch-cell),
+    var(--sketch-cell) var(--sketch-cell),
+    var(--sketch-major) var(--sketch-major),
+    var(--sketch-major) var(--sketch-major);
+}
+
+.compliance .compliance-detail {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--shell-surface);
+}
+
+.stage__inner--compliance {
+  max-width: none;
+  padding: 32px 32px 80px;
+}
