@@ -44,8 +44,9 @@ function normalizeCategoryFromText(lower) {
 
 function normalizeParsedQuery(query, message) {
   const lower = String(message || '').toLowerCase();
+  const inferredIntent = inferIntentFromText(lower);
   const normalized = {
-    intent: query?.intent || 'total_spend',
+    intent: inferredIntent || query?.intent || 'total_spend',
     category: query?.category || null,
     merchant: query?.merchant || null,
     department: query?.department || null,
@@ -78,8 +79,54 @@ function normalizeParsedQuery(query, message) {
 
   if (normalized.intent === 'small_talk') normalized.metric = 'small_talk';
   if (normalized.intent === 'out_of_scope') normalized.metric = 'out_of_scope';
+  if (normalized.intent === 'predict_spend') normalized.metric = 'predict_spend';
+  if ([
+    'top_categories',
+    'top_merchants',
+    'spend_trend',
+    'compliance_summary',
+    'top_violations',
+    'top_fleet_units',
+    'compare_categories',
+    'compare_time_periods',
+  ].includes(normalized.intent)) {
+    normalized.metric = normalized.intent;
+  }
 
   return normalized;
+}
+
+function inferIntentFromText(lower) {
+  if (/\b(what|which|where)\b.*\b(spending|spend|spent)\b.*\b(most|highest|biggest|top)\b/.test(lower)) return 'top_categories';
+  if (/\b(spending|spend|spent)\b.*\bby category\b/.test(lower)) return 'top_categories';
+  if (/\btop\b.*\b(categories|category)\b/.test(lower)) return 'top_categories';
+  if (/\b(category|categories)\b.*\b(most|highest|biggest|top)\b/.test(lower)) return 'top_categories';
+
+  if (/\b(month over month|monthly|trend|trended|over time)\b/.test(lower)) return 'spend_trend';
+
+  if (/\b(compliance|policy|risk|risky|violations|violation|flags|flagged)\b/.test(lower)) {
+    if (/\b(fleet unit|fleet units|unit|units|card|cards)\b/.test(lower) && /\b(most|highest|top|worst)\b/.test(lower)) {
+      return 'top_fleet_units';
+    }
+    if (/\b(violation|violations|policy)\b/.test(lower) && /\b(most|top|common|frequent)\b/.test(lower)) {
+      return 'top_violations';
+    }
+    return 'compliance_summary';
+  }
+
+  if (/\b(fleet unit|fleet units|unit|units|card|cards)\b/.test(lower) && /\b(most|highest|top|worst)\b/.test(lower)) {
+    return 'top_fleet_units';
+  }
+
+  if (/\bcompare\b/.test(lower) && /\b(category|categories|fuel|meals|software|travel|equipment|gas|diesel)\b/.test(lower)) {
+    return 'compare_categories';
+  }
+
+  if (/\bcompare\b/.test(lower) && /\b(month|quarter|year|period|periods)\b/.test(lower)) {
+    return 'compare_time_periods';
+  }
+
+  return null;
 }
 
 async function callGemini(prompt, label = 'unknown') {
@@ -139,6 +186,8 @@ function fallbackParse(message) {
     intent = 'small_talk';
   } else if (isPredictive) {
     intent = 'predict_spend';
+  } else if (inferIntentFromText(lower)) {
+    intent = inferIntentFromText(lower);
   } else if (lower.includes('compare')) {
     intent = 'compare_spend';
   } else if (lower.includes('largest') || lower.includes('biggest')) {
@@ -181,7 +230,7 @@ function fallbackParse(message) {
     country: null,
     dateRange,
     groupBy,
-    metric: intent === 'small_talk' || intent === 'out_of_scope' ? intent : intent === 'predict_spend' ? 'predict_spend' : 'total_spend',
+    metric: intent === 'small_talk' || intent === 'out_of_scope' ? intent : intent === 'predict_spend' ? 'predict_spend' : intent,
     chartType: null,
   };
 }
@@ -190,8 +239,14 @@ async function understandQuestion(message) {
   const prompt = [
     'Convert the user message into strict JSON only.',
     'Return fields: intent, category, merchant, department, employeeName, city, stateProvince, country, dateRange, groupBy, metric, chartType.',
-    'Allowed intents: small_talk, out_of_scope, total_spend, compare_spend, top_transactions, top_merchants, spend_trend, predict_spend.',
+    'Allowed intents: small_talk, out_of_scope, total_spend, top_categories, top_merchants, spend_trend, compliance_summary, top_violations, top_fleet_units, compare_categories, compare_time_periods, compare_spend, top_transactions, predict_spend.',
     'Use predict_spend for any forward-looking questions asking about future spend, next month spend, forecasts, or predictions.',
+    'Use top_categories for questions like "what are we spending the most on" or "top spend categories".',
+    'Use spend_trend for trend, month-over-month, monthly, or over-time spend questions.',
+    'Use compliance_summary for questions about compliance risk, policy risk, risk drivers, missing approvals, missing receipts, or flagged spend.',
+    'Use top_fleet_units for questions asking which fleet unit, card, or unit has the most violations or risk.',
+    'Use top_violations for questions asking for the most common violation types or policy failures.',
+    'Use compare_categories when comparing spend between categories. Use compare_time_periods when comparing months, quarters, or periods.',
     'Use out_of_scope for external market questions such as current gas prices. Use total_spend for internal spend questions such as "what did we spend on gas".',
     'Map gas, gasoline, diesel, and petrol to category "Fuel".',
     'Map office supplies to category "Equipment" because Office Supplies is not a dataset category.',

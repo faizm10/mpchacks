@@ -74,3 +74,4 @@ pkg/
 
 # Generated files
 *.generated.*
+.vercel

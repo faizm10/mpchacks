@@ -19,12 +19,41 @@ const {
 const { validateChartType } = require('../services/chartService');
 const { readJson, resolveJsonPath } = require('../services/fileStore');
 const { canonicalizeQuery } = require('../services/queryCanonicalizer');
+const { scanTransactions } = require('../services/complianceService');
 const ml = require('../ml');
 
 const router = express.Router();
 const LOG_PREFIX = '[ask]';
 
 function buildFollowUps(intent) {
+  if (intent === 'top_categories') {
+    return [
+      'Show top merchants in the biggest category',
+      'How has spend trended month over month?',
+      'What is driving compliance risk?',
+    ];
+  }
+  if (intent === 'spend_trend') {
+    return [
+      'Break that trend down by category',
+      'Which month had the highest spend?',
+      'Forecast next month spend',
+    ];
+  }
+  if (intent === 'compliance_summary' || intent === 'top_violations') {
+    return [
+      'Which fleet unit has the most violations?',
+      'Show the most common policy failures',
+      'Which merchants are highest risk?',
+    ];
+  }
+  if (intent === 'top_fleet_units') {
+    return [
+      'What is driving compliance risk?',
+      'Show the most common policy failures',
+      'Show top transactions for that fleet unit',
+    ];
+  }
   if (intent === 'out_of_scope') {
     return [
       'What did we spend on fuel last month?',
@@ -135,6 +164,239 @@ function calcResult(transactions, query, filters) {
   };
 }
 
+function formatMoney(value) {
+  return `$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+function displayCategoryName(category) {
+  if (/^\d+$/.test(String(category || ''))) return `Other / uncategorized (${category})`;
+  return category || 'Unknown';
+}
+
+function getComputedViolations(transactions) {
+  const policyRules = readJson('data/policyRules.json', []);
+  const storedViolations = readJson('data/violations.json', []);
+
+  if (Array.isArray(storedViolations) && storedViolations.length > 0) {
+    return {
+      violations: storedViolations,
+      source: 'stored',
+      policyRules,
+    };
+  }
+
+  return {
+    violations: scanTransactions(transactions, policyRules),
+    source: 'computed',
+    policyRules,
+  };
+}
+
+function countBy(rows, keyFn) {
+  const counts = {};
+  rows.forEach(row => {
+    const key = keyFn(row) || 'Unknown';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function sumBy(rows, keyFn) {
+  const sums = {};
+  rows.forEach(row => {
+    const key = keyFn(row) || 'Unknown';
+    sums[key] = (sums[key] || 0) + Number(row.amount || 0);
+  });
+  return Object.entries(sums)
+    .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function buildTopCategoriesResult(transactions, filters) {
+  const categories = groupSpend(transactions, 'category', filters)
+    .map(row => ({ ...row, name: displayCategoryName(row.name), rawCategory: row.name }));
+  const top = categories.slice(0, 5);
+  const leader = top[0];
+
+  return {
+    summary: leader
+      ? `Your top spend category is ${leader.name} at ${formatMoney(leader.value)}. Top categories: ${top.map(row => `${row.name} (${formatMoney(row.value)})`).join(', ')}.`
+      : 'No category spend matched the selected filters.',
+    chartType: 'bar',
+    chartData: top,
+    tableData: top.map((row, index) => ({
+      rank: index + 1,
+      category: row.name,
+      total: row.value,
+    })),
+    resultType: 'top_categories',
+  };
+}
+
+function buildSpendTrendResult(transactions, filters) {
+  const trend = getSpendTrend(transactions, filters);
+  const first = trend[0];
+  const last = trend[trend.length - 1];
+  const peak = [...trend].sort((a, b) => b.value - a.value)[0];
+  const delta = first && last ? Number((last.value - first.value).toFixed(2)) : 0;
+  const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+
+  return {
+    summary: trend.length
+      ? `Spend is trending ${direction} month over month. It moved from ${formatMoney(first.value)} in ${first.name} to ${formatMoney(last.value)} in ${last.name}; the peak month was ${peak.name} at ${formatMoney(peak.value)}.`
+      : 'No monthly spend data matched the selected filters.',
+    chartType: 'line',
+    chartData: trend,
+    tableData: trend.map(row => ({
+      month: row.name,
+      total: row.value,
+    })),
+    resultType: 'spend_trend',
+  };
+}
+
+function buildTopViolationsResult(transactions) {
+  const { violations, source } = getComputedViolations(transactions);
+  const byRule = countBy(violations, v => v.ruleName);
+  const top = byRule.slice(0, 5);
+
+  return {
+    summary: top.length
+      ? `The most common policy issue is "${top[0].name}" with ${top[0].value} violations. Top violation drivers: ${top.map(row => `${row.name} (${row.value})`).join(', ')}.`
+      : 'No policy violations were found in the current transaction set.',
+    chartType: 'bar',
+    chartData: top,
+    tableData: top.map((row, index) => ({
+      rank: index + 1,
+      violationType: row.name,
+      count: row.value,
+    })),
+    resultType: 'top_violations',
+    source,
+  };
+}
+
+function buildTopFleetUnitsResult(transactions) {
+  const { violations, source } = getComputedViolations(transactions);
+  const txnById = new Map(transactions.map(txn => [txn.id, txn]));
+  const enriched = violations.map(v => ({ ...v, transaction: txnById.get(v.transactionId) }));
+  const byFleetUnit = countBy(enriched, v => v.transaction?.transactionCode ? `Fleet Unit ${v.transaction.transactionCode}` : 'Unknown fleet unit');
+  const top = byFleetUnit.slice(0, 5);
+
+  return {
+    summary: top.length
+      ? `${top[0].name} has the most policy violations with ${top[0].value} flagged issues. Top fleet units: ${top.map(row => `${row.name} (${row.value})`).join(', ')}.`
+      : 'No fleet-unit policy violations were found in the current transaction set.',
+    chartType: 'bar',
+    chartData: top,
+    tableData: top.map((row, index) => ({
+      rank: index + 1,
+      fleetUnit: row.name,
+      violationCount: row.value,
+    })),
+    resultType: 'top_fleet_units',
+    source,
+  };
+}
+
+function buildComplianceSummaryResult(transactions) {
+  const { violations, source } = getComputedViolations(transactions);
+  const totalViolations = violations.length;
+  const highSeverity = violations.filter(v => v.severity === 'high').length;
+  const missingApprovals = violations.filter(v => /pre-authorization|approval/i.test(v.ruleName || '')).length;
+  const missingReceipts = violations.filter(v => /receipt/i.test(v.ruleName || '')).length;
+  const topViolationTypes = countBy(violations, v => v.ruleName).slice(0, 5);
+  const repeatOffenders = countBy(violations, v => v.employeeName).slice(0, 5);
+  const riskyMerchants = sumBy(violations, v => v.merchantName).slice(0, 5);
+
+  const topDriver = topViolationTypes[0];
+  return {
+    summary: totalViolations
+      ? `Compliance risk is mainly driven by ${topDriver.name} (${topDriver.value} violations). There are ${totalViolations} total violations, including ${highSeverity} high-severity issues, ${missingApprovals} approval-related flags, and ${missingReceipts} receipt-related flags.`
+      : 'No compliance violations were found in the current transaction set.',
+    chartType: 'bar',
+    chartData: topViolationTypes,
+    tableData: [
+      { metric: 'Total violations', value: totalViolations },
+      { metric: 'High-severity violations', value: highSeverity },
+      { metric: 'Approval-related flags', value: missingApprovals },
+      { metric: 'Receipt-related flags', value: missingReceipts },
+      ...topViolationTypes.map(row => ({ metric: row.name, value: row.value })),
+    ],
+    context: {
+      topViolationTypes,
+      repeatOffenders,
+      riskyMerchants,
+      missingApprovals,
+      missingReceipts,
+    },
+    resultType: 'compliance_summary',
+    source,
+  };
+}
+
+function buildCompareCategoriesResult(transactions, filters, query) {
+  const categories = Array.isArray(query.compareValues) && query.compareValues.length
+    ? query.compareValues
+    : ['Fuel', 'Meals', 'Software', 'Equipment', 'Travel'];
+  const comparison = categories.map(category => ({
+    name: category,
+    value: Number(getTotalSpend(transactions, { ...filters, category }).toFixed(2)),
+  })).sort((a, b) => b.value - a.value);
+
+  return {
+    summary: comparison.length
+      ? `Category comparison: ${comparison.map(row => `${row.name} (${formatMoney(row.value)})`).join(', ')}.`
+      : 'No category comparison data matched the selected filters.',
+    chartType: 'bar',
+    chartData: comparison,
+    tableData: comparison.map(row => ({ category: row.name, total: row.value })),
+    resultType: 'compare_categories',
+  };
+}
+
+function buildCompareTimePeriodsResult(transactions, filters) {
+  const trend = getSpendTrend(transactions, filters);
+  const recent = trend.slice(-6);
+
+  return {
+    summary: recent.length
+      ? `Recent period comparison: ${recent.map(row => `${row.name} (${formatMoney(row.value)})`).join(', ')}.`
+      : 'No period comparison data matched the selected filters.',
+    chartType: 'bar',
+    chartData: recent,
+    tableData: recent.map(row => ({ period: row.name, total: row.value })),
+    resultType: 'compare_time_periods',
+  };
+}
+
+function runIntentHandler(intent, transactions, filters, query) {
+  const handlers = {
+    top_categories: () => buildTopCategoriesResult(transactions, filters),
+    spend_trend: () => buildSpendTrendResult(transactions, filters),
+    compliance_summary: () => buildComplianceSummaryResult(transactions),
+    top_violations: () => buildTopViolationsResult(transactions),
+    top_fleet_units: () => buildTopFleetUnitsResult(transactions),
+    compare_categories: () => buildCompareCategoriesResult(transactions, filters, query),
+    compare_time_periods: () => buildCompareTimePeriodsResult(transactions, filters),
+  };
+
+  const handler = handlers[intent];
+  if (!handler) return null;
+
+  console.info(LOG_PREFIX, 'selected analytics handler', { intent, handler: intent });
+  const result = handler();
+  console.info(LOG_PREFIX, 'handler result', {
+    intent,
+    resultType: result.resultType,
+    chartDataCount: result.chartData?.length || 0,
+    tableDataCount: result.tableData?.length || 0,
+  });
+  return result;
+}
+
 router.post('/ask', async (req, res) => {
   try {
     const { message, conversationId } = req.body || {};
@@ -166,6 +428,11 @@ router.post('/ask', async (req, res) => {
 
     const canonical = canonicalizeQuery(rawQuery, message, transactions);
     const query = canonical.query;
+    console.info(LOG_PREFIX, 'detected intent', {
+      rawIntent: rawQuery.intent,
+      canonicalIntent: query.intent,
+      metric: query.metric,
+    });
     console.info(LOG_PREFIX, 'available transaction dimensions', {
       category: canonical.available.categories,
       department: canonical.available.departments,
@@ -244,6 +511,41 @@ router.post('/ask', async (req, res) => {
           groupBy: query.groupBy,
           metric: query.metric,
           resolution: canonical.resolution,
+        },
+        followUps: buildFollowUps(query.intent),
+      });
+    }
+
+    const intentResult = runIntentHandler(query.intent, transactions, filters, query);
+    if (intentResult) {
+      const chartType = intentResult.chartType || validateChartType(query.intent, query.groupBy, query.chartType);
+      const nextContext = {
+        intent: query.intent,
+        category: query.category,
+        merchant: query.merchant,
+        department: query.department,
+        employeeName: query.employeeName,
+        city: query.city,
+        stateProvince: query.stateProvince,
+        country: query.country,
+        dateRange: query.dateRange,
+        groupBy: query.groupBy,
+        metric: query.metric || intentResult.resultType,
+        chartType,
+      };
+
+      setContext(conversationId, nextContext);
+
+      return res.json({
+        summary: intentResult.summary,
+        chartType,
+        chartData: intentResult.chartData || [],
+        tableData: intentResult.tableData || [],
+        context: {
+          ...nextContext,
+          resolution: canonical.resolution,
+          resultType: intentResult.resultType,
+          ...(intentResult.context || {}),
         },
         followUps: buildFollowUps(query.intent),
       });
