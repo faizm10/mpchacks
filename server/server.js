@@ -27,3 +27,6 @@ app.use('/api', mlRoute);
 app.listen(PORT, () => {
   console.log(`BrimIQ backend listening on port ${PORT}`);
 });
+
+
+module.exports = app;
