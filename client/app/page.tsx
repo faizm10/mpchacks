@@ -1,5 +1,5 @@
-import WireframeApp from "@/components/wireframe/WireframeApp";
+import DashboardScreen from "@/components/app/DashboardScreen";
 
 export default function Home() {
-  return <WireframeApp />;
+  return <DashboardScreen />;
 }

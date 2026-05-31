@@ -7,19 +7,37 @@ const {
 const { getContext, setContext } = require('../services/conversationMemoryService');
 const {
   filterTransactions,
+  getLatestTransactionDate,
   getTotalSpend,
   groupSpend,
   compareSpend,
   getTopMerchants,
   getTopTransactions,
   getSpendTrend,
+  normalizeRange,
 } = require('../services/analyticsService');
 const { validateChartType } = require('../services/chartService');
-const { readJson } = require('../services/fileStore');
+const { readJson, resolveJsonPath } = require('../services/fileStore');
+const { canonicalizeQuery } = require('../services/queryCanonicalizer');
 
 const router = express.Router();
+const LOG_PREFIX = '[ask]';
 
 function buildFollowUps(intent) {
+  if (intent === 'out_of_scope') {
+    return [
+      'What did we spend on fuel last month?',
+      'Show fuel spend by month',
+      'Which merchants drove fuel spend?',
+    ];
+  }
+  if (intent === 'small_talk') {
+    return [
+      'What did we spend on fuel last month?',
+      'Show top merchants this quarter',
+      'Which department has the most policy violations?',
+    ];
+  }
   if (intent === 'compare_spend') {
     return [
       'Break that down by merchant',
@@ -35,7 +53,20 @@ function buildFollowUps(intent) {
   ];
 }
 
-function extractFilters(query) {
+function summarizeUnavailableFilter(resolution, available) {
+  if (resolution.department.matchType === 'missing' && resolution.department.requested) {
+    return `No transactions match the "${resolution.department.requested}" department because that department is not present in this dataset. Available departments are: ${available.departments.join(', ')}.`;
+  }
+
+  if (resolution.category.matchType === 'missing' && resolution.category.requested) {
+    const closest = resolution.category.closest ? ` Closest available category: ${resolution.category.closest}.` : '';
+    return `No transactions match the "${resolution.category.requested}" category because that category is not present in this dataset.${closest}`;
+  }
+
+  return null;
+}
+
+function extractFilters(query, now) {
   return {
     category: query.category || null,
     merchant: query.merchant || null,
@@ -45,12 +76,11 @@ function extractFilters(query) {
     stateProvince: query.stateProvince || null,
     country: query.country || null,
     dateRange: query.dateRange?.value || query.dateRange || null,
+    now,
   };
 }
 
-function calcResult(transactions, query) {
-  const filters = extractFilters(query);
-
+function calcResult(transactions, query, filters) {
   if (query.intent === 'compare_spend') {
     if (query.country && Array.isArray(query.compareValues)) {
       return {
@@ -107,25 +137,118 @@ function calcResult(transactions, query) {
 router.post('/ask', async (req, res) => {
   try {
     const { message, conversationId } = req.body || {};
+    console.info(LOG_PREFIX, 'request received', { message, conversationId });
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
     }
 
+    const transactionsPath = resolveJsonPath('data/transactions_enriched.json');
     const transactions = readJson('data/transactions_enriched.json', []);
+    const latestTransactionDate = getLatestTransactionDate(transactions);
+    const analyticsNow = latestTransactionDate || new Date();
+    console.info(LOG_PREFIX, 'transactions loaded', {
+      path: transactionsPath,
+      count: transactions.length,
+      latestTransactionDate: latestTransactionDate?.toISOString().slice(0, 10) || null,
+    });
+
     const previous = getContext(conversationId);
 
     const lower = String(message).toLowerCase();
     const followupWords = ['that', 'those', 'it', 'them', 'compare'];
     const isLikelyFollowup = followupWords.some(w => lower.includes(w)) && previous?.lastContext;
 
-    const query = isLikelyFollowup
+    const rawQuery = isLikelyFollowup
       ? await resolveFollowUp(message, previous.lastContext)
       : await understandQuestion(message);
+    console.info(LOG_PREFIX, 'parsed query object', { query: rawQuery, isLikelyFollowup });
 
-    const result = calcResult(transactions, query);
+    const canonical = canonicalizeQuery(rawQuery, message, transactions);
+    const query = canonical.query;
+    console.info(LOG_PREFIX, 'available transaction dimensions', {
+      category: canonical.available.categories,
+      department: canonical.available.departments,
+      merchantNameCount: canonical.available.merchantNames.length,
+      merchantName: canonical.available.merchantNames,
+      country: canonical.available.countries,
+      stateProvince: canonical.available.stateProvinces,
+    });
+    console.info(LOG_PREFIX, 'canonical query object', {
+      before: rawQuery,
+      after: query,
+      resolution: canonical.resolution,
+    });
 
-    const filters = extractFilters(query);
+    if (query.intent === 'small_talk') {
+      console.info(LOG_PREFIX, 'returning small_talk response');
+      return res.json({
+        summary: "I’m doing well. I can help with fleet spend analytics, compliance trends, merchants, and time-based comparisons. Try asking a finance question like: 'What did we spend on fuel last month?'",
+        chartType: null,
+        chartData: [],
+        tableData: [],
+        context: {
+          category: null,
+          dateRange: null,
+          groupBy: null,
+          metric: 'small_talk',
+        },
+        followUps: buildFollowUps('small_talk'),
+      });
+    }
+
+    if (query.intent === 'out_of_scope') {
+      console.info(LOG_PREFIX, 'returning out_of_scope response', { query });
+      return res.json({
+        summary: "I can answer questions about your company’s transaction data, but I don’t have live market pricing. Try asking what we spent on gas or fuel instead.",
+        chartType: null,
+        chartData: [],
+        tableData: [],
+        context: {
+          category: query.category,
+          dateRange: query.dateRange,
+          groupBy: query.groupBy,
+          metric: 'out_of_scope',
+        },
+        followUps: buildFollowUps('out_of_scope'),
+      });
+    }
+
+    const filters = extractFilters(query, analyticsNow);
     const filtered = filterTransactions(transactions, filters);
+    const normalizedDateRange = normalizeRange(filters.dateRange, filters.now);
+    console.info(LOG_PREFIX, 'filters applied', {
+      filters: { ...filters, now: filters.now?.toISOString?.().slice(0, 10) || filters.now },
+      normalizedDateRange,
+      matchingTransactions: filtered.length,
+    });
+
+    const unavailableSummary = summarizeUnavailableFilter(canonical.resolution, canonical.available);
+    if (unavailableSummary) {
+      const unavailableTotal = Number(getTotalSpend(transactions, filters).toFixed(2));
+      console.info(LOG_PREFIX, 'unavailable filter detected', {
+        resolution: canonical.resolution,
+        matchingTransactions: filtered.length,
+        calculatedTotal: unavailableTotal,
+        summary: unavailableSummary,
+      });
+      return res.json({
+        summary: unavailableSummary,
+        chartType: null,
+        chartData: [],
+        tableData: [],
+        context: {
+          category: query.category,
+          department: query.department,
+          dateRange: query.dateRange,
+          groupBy: query.groupBy,
+          metric: query.metric,
+          resolution: canonical.resolution,
+        },
+        followUps: buildFollowUps(query.intent),
+      });
+    }
+
+    const result = calcResult(transactions, query, filters);
 
     let chartData = [];
     if (result.comparison) chartData = result.comparison;
@@ -141,6 +264,13 @@ router.post('/ask', async (req, res) => {
       city: row.city,
       country: row.country,
     }));
+    console.info(LOG_PREFIX, 'response data sources', {
+      chartDataCount: chartData.length,
+      tableDataCount: tableData.length,
+      filteredTransactionCount: filtered.length,
+      resultMetric: result.metric,
+      resultTotal: result.total,
+    });
 
     const summary = await summarizeCalculatedResult(message, {
       ...result,
@@ -174,9 +304,11 @@ router.post('/ask', async (req, res) => {
       tableData,
       context: {
         category: query.category,
+        department: query.department,
         dateRange: query.dateRange,
         groupBy: query.groupBy,
         metric: query.metric || result.metric,
+        resolution: canonical.resolution,
       },
       followUps: buildFollowUps(query.intent),
     });

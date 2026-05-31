@@ -1,6 +1,8 @@
 const { GoogleGenAI } = require('@google/genai');
+const { categoryAliases } = require('./queryCanonicalizer');
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const LOG_PREFIX = '[ask:gemini]';
 
 let aiClient = null;
 
@@ -22,9 +24,71 @@ function extractText(response) {
   return response?.candidates?.[0]?.content?.parts?.[0]?.text || null;
 }
 
-async function callGemini(prompt) {
+function isOutOfScopeQuestion(lower) {
+  const asksExternalPrice = /\b(price|prices|rate|rates|cost per|per gallon|per litre|per liter)\b/.test(lower);
+  const mentionsFuel = /\b(gas|fuel|diesel|petrol)\b/.test(lower);
+  const asksInternalSpend = /\b(spend|spent|spending|transaction|transactions|expense|expenses|merchant|merchants|category|categories|compliance|violation|violations)\b/.test(lower);
+
+  return asksExternalPrice && mentionsFuel && !asksInternalSpend;
+}
+
+function normalizeCategoryFromText(lower) {
+  const hasTerm = term => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(lower);
+  };
+
+  const match = Object.entries(categoryAliases).find(([alias]) => hasTerm(alias.replace(/_/g, ' ')));
+  return match?.[1] || null;
+}
+
+function normalizeParsedQuery(query, message) {
+  const lower = String(message || '').toLowerCase();
+  const normalized = {
+    intent: query?.intent || 'total_spend',
+    category: query?.category || null,
+    merchant: query?.merchant || null,
+    department: query?.department || null,
+    employeeName: query?.employeeName || null,
+    city: query?.city || null,
+    stateProvince: query?.stateProvince || null,
+    country: query?.country || null,
+    dateRange: query?.dateRange || null,
+    groupBy: query?.groupBy || null,
+    metric: query?.metric || 'total_spend',
+    chartType: query?.chartType || null,
+    compareValues: query?.compareValues || null,
+  };
+
+  if (isOutOfScopeQuestion(lower)) {
+    normalized.intent = 'out_of_scope';
+    normalized.metric = 'out_of_scope';
+  }
+
+  const categoryFromText = normalizeCategoryFromText(lower);
+  if (categoryFromText) normalized.category = categoryFromText;
+
+  if (lower.includes('last month')) {
+    normalized.dateRange = { type: 'relative', value: 'last_month' };
+  } else if (lower.includes('this month')) {
+    normalized.dateRange = { type: 'relative', value: 'this_month' };
+  } else if (lower.includes('last quarter')) {
+    normalized.dateRange = { type: 'relative', value: 'last_quarter' };
+  }
+
+  if (normalized.intent === 'small_talk') normalized.metric = 'small_talk';
+  if (normalized.intent === 'out_of_scope') normalized.metric = 'out_of_scope';
+
+  return normalized;
+}
+
+async function callGemini(prompt, label = 'unknown') {
   const ai = getAiClient();
-  if (!ai) return null;
+  console.info(LOG_PREFIX, 'call start', { label, model: GEMINI_MODEL, hasApiKey: Boolean(process.env.GEMINI_API_KEY) });
+  if (!ai) {
+    console.warn(LOG_PREFIX, 'skipping Gemini call because GEMINI_API_KEY is not set', { label });
+    return null;
+  }
 
   try {
     const response = await ai.models.generateContent({
@@ -38,27 +102,52 @@ async function callGemini(prompt) {
     });
 
     const text = await extractText(response);
-    if (!text) return null;
+    console.info(LOG_PREFIX, 'raw response text', { label, text });
+    if (!text) {
+      console.warn(LOG_PREFIX, 'Gemini response had no text', { label });
+      return null;
+    }
 
-    return JSON.parse(text);
-  } catch (_err) {
+    const parsed = JSON.parse(text);
+    console.info(LOG_PREFIX, 'JSON parse success', { label, parsed });
+    return parsed;
+  } catch (err) {
+    console.error(LOG_PREFIX, 'Gemini call or JSON parse failed', { label, error: err.message });
     return null;
   }
 }
 
 function fallbackParse(message) {
   const lower = String(message || '').toLowerCase();
+  const normalizedMessage = lower.replace(/[^\w\s]/g, '').trim();
+  const smallTalkPatterns = [
+    /^(hello|hi|hey)$/,
+    /^how are you( doing)?$/,
+    /^good (morning|afternoon|evening)$/,
+    /^(thanks|thank you)$/,
+    /^what can you do$/,
+    /^help$/,
+  ];
+  const isSmallTalk = smallTalkPatterns.some(pattern => pattern.test(normalizedMessage));
 
   let intent = 'total_spend';
-  if (lower.includes('compare')) intent = 'compare_spend';
-  if (lower.includes('largest') || lower.includes('biggest')) intent = 'top_transactions';
-  if (lower.includes('top merchant') || lower.includes('merchant')) intent = 'top_merchants';
-  if (lower.includes('trend') || lower.includes('over time')) intent = 'spend_trend';
+  if (isOutOfScopeQuestion(lower)) {
+    intent = 'out_of_scope';
+  } else if (isSmallTalk) {
+    intent = 'small_talk';
+  } else if (lower.includes('compare')) {
+    intent = 'compare_spend';
+  } else if (lower.includes('largest') || lower.includes('biggest')) {
+    intent = 'top_transactions';
+  } else if (lower.includes('top merchant') || lower.includes('merchant')) {
+    intent = 'top_merchants';
+  } else if (lower.includes('trend') || lower.includes('over time')) {
+    intent = 'spend_trend';
+  }
 
-  const categories = ['Fuel', 'Travel', 'Meals', 'Software', 'Government / Permits', 'Alcohol / Bar'];
-  const departments = ['Operations', 'Logistics', 'Finance', 'Sales'];
+  const departments = ['Operations', 'Logistics', 'Sales', 'Marketing', 'Finance', 'Engineering'];
 
-  const category = categories.find(c => lower.includes(c.toLowerCase())) || null;
+  const category = normalizeCategoryFromText(lower);
   const department = departments.find(d => lower.includes(d.toLowerCase())) || null;
 
   let groupBy = null;
@@ -88,21 +177,31 @@ function fallbackParse(message) {
     country: null,
     dateRange,
     groupBy,
-    metric: 'total_spend',
+    metric: intent === 'small_talk' || intent === 'out_of_scope' ? intent : 'total_spend',
     chartType: null,
   };
 }
 
 async function understandQuestion(message) {
   const prompt = [
-    'Convert the finance question into strict JSON only.',
+    'Convert the user message into strict JSON only.',
     'Return fields: intent, category, merchant, department, employeeName, city, stateProvince, country, dateRange, groupBy, metric, chartType.',
+    'Allowed intents: small_talk, out_of_scope, total_spend, compare_spend, top_transactions, top_merchants, spend_trend.',
+    'Use out_of_scope for external market questions such as current gas prices. Use total_spend for internal spend questions such as "what did we spend on gas".',
+    'Map gas, gasoline, diesel, and petrol to category "Fuel".',
+    'Map office supplies to category "Equipment" because Office Supplies is not a dataset category.',
     'dateRange should be an object: {"type":"relative|absolute|null","value":"...","startDate":"YYYY-MM-DD|null","endDate":"YYYY-MM-DD|null"}',
     `Question: ${message}`,
   ].join('\n');
 
-  const parsed = await callGemini(prompt);
-  return parsed || fallbackParse(message);
+  const parsed = await callGemini(prompt, 'understandQuestion');
+  const query = parsed || fallbackParse(message);
+  const normalized = normalizeParsedQuery(query, message);
+  console.info(LOG_PREFIX, 'structured query returned', {
+    source: parsed ? 'gemini' : 'fallback',
+    query: normalized,
+  });
+  return normalized;
 }
 
 async function resolveFollowUp(currentMessage, previousContext) {
@@ -113,11 +212,11 @@ async function resolveFollowUp(currentMessage, previousContext) {
     `currentMessage: ${currentMessage}`,
   ].join('\n');
 
-  const parsed = await callGemini(prompt);
-  if (parsed) return parsed;
+  const parsed = await callGemini(prompt, 'resolveFollowUp');
+  if (parsed) return normalizeParsedQuery(parsed, currentMessage);
 
   const fallback = fallbackParse(currentMessage);
-  return {
+  return normalizeParsedQuery({
     ...previousContext,
     ...fallback,
     intent: fallback.intent || previousContext?.intent || 'total_spend',
@@ -125,7 +224,7 @@ async function resolveFollowUp(currentMessage, previousContext) {
     department: fallback.department || previousContext?.department || null,
     dateRange: fallback.dateRange || previousContext?.dateRange || null,
     metric: previousContext?.metric || 'total_spend',
-  };
+  }, currentMessage);
 }
 
 async function summarizeCalculatedResult(question, result) {
@@ -135,7 +234,7 @@ async function summarizeCalculatedResult(question, result) {
     JSON.stringify({ question, result }),
   ].join('\n');
 
-  const summary = await callGemini(prompt);
+  const summary = await callGemini(prompt, 'summarizeCalculatedResult');
   if (summary && summary.summary) return summary.summary;
 
   if (result.total !== undefined) {

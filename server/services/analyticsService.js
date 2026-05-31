@@ -6,6 +6,10 @@ function parseDate(dateStr) {
 function normalizeRange(dateRange, now = new Date()) {
   if (!dateRange) return null;
 
+  if (typeof dateRange === 'object' && dateRange.type === 'relative') {
+    dateRange = dateRange.value;
+  }
+
   if (typeof dateRange === 'string') {
     const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
@@ -32,12 +36,12 @@ function normalizeRange(dateRange, now = new Date()) {
   return dateRange;
 }
 
-function withinRange(date, dateRange) {
+function withinRange(date, dateRange, now = new Date()) {
   if (!dateRange) return true;
   const d = parseDate(date);
   if (!d) return false;
 
-  const normalized = normalizeRange(dateRange);
+  const normalized = normalizeRange(dateRange, now);
   if (!normalized || !normalized.startDate || !normalized.endDate) return true;
 
   const start = parseDate(normalized.startDate);
@@ -49,16 +53,39 @@ function withinRange(date, dateRange) {
 
 function filterTransactions(transactions, filters = {}) {
   return transactions.filter(txn => {
-    if (filters.category && String(txn.category).toLowerCase() !== String(filters.category).toLowerCase()) return false;
-    if (filters.merchant && String(txn.merchantName).toLowerCase() !== String(filters.merchant).toLowerCase()) return false;
-    if (filters.department && String(txn.department).toLowerCase() !== String(filters.department).toLowerCase()) return false;
-    if (filters.employeeName && String(txn.employeeName).toLowerCase() !== String(filters.employeeName).toLowerCase()) return false;
-    if (filters.city && String(txn.city).toLowerCase() !== String(filters.city).toLowerCase()) return false;
-    if (filters.stateProvince && String(txn.stateProvince).toLowerCase() !== String(filters.stateProvince).toLowerCase()) return false;
-    if (filters.country && String(txn.country).toLowerCase() !== String(filters.country).toLowerCase()) return false;
-    if (!withinRange(txn.transactionDate, filters.dateRange)) return false;
+    if (filters.category && !matchesFilter(txn.category, filters.category)) return false;
+    if (filters.merchant && !matchesFilter(txn.merchantName, filters.merchant)) return false;
+    if (filters.department && !matchesFilter(txn.department, filters.department)) return false;
+    if (filters.employeeName && !matchesFilter(txn.employeeName, filters.employeeName)) return false;
+    if (filters.city && !matchesFilter(txn.city, filters.city)) return false;
+    if (filters.stateProvince && !matchesFilter(txn.stateProvince, filters.stateProvince)) return false;
+    if (filters.country && !matchesFilter(txn.country, filters.country)) return false;
+    if (!withinRange(txn.transactionDate, filters.dateRange, filters.now)) return false;
     return true;
   });
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function matchesFilter(actual, expected) {
+  const normalizedActual = normalizeText(actual);
+  const normalizedExpected = normalizeText(expected);
+  if (!normalizedExpected) return true;
+  if (!normalizedActual) return false;
+  if (normalizedActual === normalizedExpected) return true;
+  if (normalizedExpected.length < 3) return false;
+  return normalizedActual.includes(normalizedExpected) || normalizedExpected.includes(normalizedActual);
+}
+
+function getLatestTransactionDate(transactions) {
+  const dates = transactions
+    .map(txn => parseDate(txn.transactionDate))
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  return dates[0] || null;
 }
 
 function getTotalSpend(transactions, filters = {}) {
@@ -120,6 +147,9 @@ function getSpendTrend(transactions, filters = {}) {
 
 module.exports = {
   filterTransactions,
+  getLatestTransactionDate,
+  matchesFilter,
+  normalizeRange,
   getTotalSpend,
   groupSpend,
   compareSpend,
