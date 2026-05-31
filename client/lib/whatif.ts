@@ -3,12 +3,14 @@ import { TRANSACTIONS } from "./analytics";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ScenarioType =
-  | "fleet_purchase"
-  | "equipment_upgrade"
-  | "headcount"
-  | "route_expansion"
+  | "equipment_purchase"
+  | "software"
+  | "maintenance"
+  | "supplies"
   | "vendor_change"
-  | "compliance";
+  | "headcount"
+  | "compliance"
+  | "expansion";
 
 export type ScenarioParams = {
   oneTimeCost: number;       // upfront expense in the start month
@@ -45,62 +47,71 @@ export type ScenarioSummary = {
   breakEvenMonths: number | null;
 };
 
-// ── Preset scenarios (calibrated to ~$216k/mo fleet baseline) ─────────────────
+// ── Preset scenarios (calibrated to ~$216k/mo company baseline) ──────────────
 
 export const PRESET_SCENARIOS: Scenario[] = [
   {
-    id: "fleet_truck",
-    label: "Purchase New Fleet Truck",
-    description: "Acquire a long-haul semi — one-time purchase plus ongoing fuel, driver expenses, and maintenance.",
-    type: "fleet_purchase",
-    icon: "🚛",
+    id: "office_equipment",
+    label: "Office Equipment Purchase",
+    description: "Upgrade workstations, monitors, and office furniture for a team expansion or refresh cycle.",
+    type: "equipment_purchase",
+    icon: "🖥️",
     color: "#2f5fd0",
-    params: { oneTimeCost: 155000, monthlyDelta: 14500, startMonthOffset: 0, durationMonths: 0 },
+    params: { oneTimeCost: 28000, monthlyDelta: 600, startMonthOffset: 0, durationMonths: 0 },
   },
   {
-    id: "route_expansion",
-    label: "Add New Delivery Route",
-    description: "Open a new regional route — recurring fuel, tolls, lodging, and driver per-diem from month one.",
-    type: "route_expansion",
-    icon: "🗺️",
-    color: "#0ea5e9",
-    params: { oneTimeCost: 8500, monthlyDelta: 26000, startMonthOffset: 1, durationMonths: 0 },
+    id: "software_subs",
+    label: "New Software Subscriptions",
+    description: "Add enterprise SaaS tools — project management, analytics, and collaboration platforms.",
+    type: "software",
+    icon: "💻",
+    color: "#8b5cf6",
+    params: { oneTimeCost: 2500, monthlyDelta: 3200, startMonthOffset: 0, durationMonths: 0 },
   },
   {
-    id: "equipment_upgrade",
-    label: "Upgrade Fleet Equipment",
-    description: "Replace aging equipment. Higher upfront cost but lower ongoing maintenance spend each month.",
-    type: "equipment_upgrade",
+    id: "maintenance_contract",
+    label: "Maintenance Contract",
+    description: "Annual preventive maintenance program for facilities and equipment — reduces unexpected repair costs over time.",
+    type: "maintenance",
     icon: "🔧",
     color: "#f97316",
-    params: { oneTimeCost: 72000, monthlyDelta: -7500, startMonthOffset: 0, durationMonths: 0 },
+    params: { oneTimeCost: 6500, monthlyDelta: 4800, startMonthOffset: 0, durationMonths: 0 },
   },
   {
-    id: "new_driver",
-    label: "Hire Additional Driver",
-    description: "Full-time commercial driver — monthly expense reimbursements, fuel card usage, and per-diems.",
+    id: "bulk_supplies",
+    label: "Bulk Supplies Order",
+    description: "Stock up on operational supplies in bulk — reduces per-unit costs and frequent smaller reorders.",
+    type: "supplies",
+    icon: "📦",
+    color: "#14b8a6",
+    params: { oneTimeCost: 15000, monthlyDelta: -1200, startMonthOffset: 0, durationMonths: 0 },
+  },
+  {
+    id: "shipping_renegotiation",
+    label: "Renegotiate Shipping Rates",
+    description: "Lock in a volume agreement with preferred carriers — estimated 12% reduction on monthly shipping spend.",
+    type: "vendor_change",
+    icon: "🚚",
+    color: "#22c55e",
+    params: { oneTimeCost: 0, monthlyDelta: -8500, startMonthOffset: 2, durationMonths: 0 },
+  },
+  {
+    id: "new_employee",
+    label: "New Employee (Operations)",
+    description: "Hire an operations coordinator — includes monthly expense budget, travel reimbursements, and training.",
     type: "headcount",
     icon: "👤",
-    color: "#8b5cf6",
-    params: { oneTimeCost: 2000, monthlyDelta: 6200, startMonthOffset: 0, durationMonths: 0 },
-  },
-  {
-    id: "fuel_contract",
-    label: "Renegotiate Fuel Contract",
-    description: "Lock in a bulk-rate fuel agreement — estimated 6–8% reduction on monthly fuel spend.",
-    type: "vendor_change",
-    icon: "⛽",
-    color: "#22c55e",
-    params: { oneTimeCost: 0, monthlyDelta: -13500, startMonthOffset: 2, durationMonths: 0 },
+    color: "#0ea5e9",
+    params: { oneTimeCost: 4500, monthlyDelta: 7200, startMonthOffset: 0, durationMonths: 0 },
   },
   {
     id: "compliance",
-    label: "New Compliance Program",
-    description: "Implement a regulatory compliance initiative — audit fees, new permits, and ongoing reporting costs.",
+    label: "Compliance & Certification",
+    description: "Implement a regulatory compliance program — initial audit, certifications, and ongoing renewal costs.",
     type: "compliance",
     icon: "⚑",
     color: "#ef4444",
-    params: { oneTimeCost: 18500, monthlyDelta: 3200, startMonthOffset: 0, durationMonths: 0 },
+    params: { oneTimeCost: 12000, monthlyDelta: 1800, startMonthOffset: 0, durationMonths: 0 },
   },
 ];
 
