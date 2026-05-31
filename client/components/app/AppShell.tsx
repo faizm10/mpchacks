@@ -13,6 +13,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/", label: "Dashboard", icon: "◳" },
       { href: "/transactions", label: "Transactions", icon: "≣" },
+      { href: "/calendar", label: "Cash Flow Calendar", icon: "▦" },
     ],
   },
   {
@@ -20,6 +21,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/compliance", label: "Policy Engine", icon: "⚑", live: true },
       { href: "/ask", label: "Ask Brim", icon: "✦" },
+      { href: "/whatif", label: "What-If Sandbox", icon: "◈" },
     ],
   },
   {
