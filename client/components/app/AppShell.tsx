@@ -20,6 +20,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/compliance", label: "Policy Engine", icon: "⚑", live: true },
       { href: "/ask", label: "Ask Brim", icon: "✦" },
+      { href: "/whatif", label: "What-If Sandbox", icon: "◈" },
     ],
   },
   {
