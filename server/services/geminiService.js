@@ -130,11 +130,15 @@ function fallbackParse(message) {
   ];
   const isSmallTalk = smallTalkPatterns.some(pattern => pattern.test(normalizedMessage));
 
+  const isPredictive = /\b(next month|next quarter|next year|forecast|predict|projection|will we spend|will i spend|will spend|going to spend|expected spend|how much will)\b/.test(lower);
+
   let intent = 'total_spend';
   if (isOutOfScopeQuestion(lower)) {
     intent = 'out_of_scope';
   } else if (isSmallTalk) {
     intent = 'small_talk';
+  } else if (isPredictive) {
+    intent = 'predict_spend';
   } else if (lower.includes('compare')) {
     intent = 'compare_spend';
   } else if (lower.includes('largest') || lower.includes('biggest')) {
@@ -177,7 +181,7 @@ function fallbackParse(message) {
     country: null,
     dateRange,
     groupBy,
-    metric: intent === 'small_talk' || intent === 'out_of_scope' ? intent : 'total_spend',
+    metric: intent === 'small_talk' || intent === 'out_of_scope' ? intent : intent === 'predict_spend' ? 'predict_spend' : 'total_spend',
     chartType: null,
   };
 }
@@ -186,7 +190,8 @@ async function understandQuestion(message) {
   const prompt = [
     'Convert the user message into strict JSON only.',
     'Return fields: intent, category, merchant, department, employeeName, city, stateProvince, country, dateRange, groupBy, metric, chartType.',
-    'Allowed intents: small_talk, out_of_scope, total_spend, compare_spend, top_transactions, top_merchants, spend_trend.',
+    'Allowed intents: small_talk, out_of_scope, total_spend, compare_spend, top_transactions, top_merchants, spend_trend, predict_spend.',
+    'Use predict_spend for any forward-looking questions asking about future spend, next month spend, forecasts, or predictions.',
     'Use out_of_scope for external market questions such as current gas prices. Use total_spend for internal spend questions such as "what did we spend on gas".',
     'Map gas, gasoline, diesel, and petrol to category "Fuel".',
     'Map office supplies to category "Equipment" because Office Supplies is not a dataset category.',

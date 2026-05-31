@@ -40,6 +40,7 @@ function saveHistory(history) {
 function syncFromTransactions(transactions) {
   const deptAgg = {};  // dept_name  → { "YYYY-MM": amount }
   const empAgg  = {};  // employeeId → { "YYYY-MM": amount }
+  const catAgg  = {};  // category   → { "YYYY-MM": amount }
 
   for (const txn of transactions) {
     const amount = Number(txn.amount || 0);
@@ -55,6 +56,11 @@ function syncFromTransactions(transactions) {
     if (txn.employeeId) {
       if (!empAgg[txn.employeeId]) empAgg[txn.employeeId] = {};
       empAgg[txn.employeeId][month] = (empAgg[txn.employeeId][month] || 0) + amount;
+    }
+
+    if (txn.category) {
+      if (!catAgg[txn.category]) catAgg[txn.category] = {};
+      catAgg[txn.category][month] = (catAgg[txn.category][month] || 0) + amount;
     }
   }
 
@@ -72,6 +78,7 @@ function syncFromTransactions(transactions) {
   const history = {
     departments: toSeries(deptAgg),
     employees:   toSeries(empAgg),
+    categories:  toSeries(catAgg),
   };
 
   saveHistory(history);
@@ -211,6 +218,12 @@ function getDepartmentForecast(departmentName) {
   return { department: departmentName, ...predictNextMonth(data), history: data };
 }
 
+function getCategoryForecast(categoryName) {
+  const history = loadHistory();
+  const data    = (history.categories ?? {})[categoryName] ?? [];
+  return { category: categoryName, ...predictNextMonth(data), history: data };
+}
+
 function getEmployeeForecast(employeeId) {
   const history = loadHistory();
   const data    = history.employees[employeeId] ?? [];
@@ -238,6 +251,7 @@ module.exports = {
   computeRiskScore,
   getDepartmentForecast,
   getEmployeeForecast,
+  getCategoryForecast,
   getAllInsights,
   loadHistory,
 };

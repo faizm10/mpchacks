@@ -19,6 +19,7 @@ const {
 const { validateChartType } = require('../services/chartService');
 const { readJson, resolveJsonPath } = require('../services/fileStore');
 const { canonicalizeQuery } = require('../services/queryCanonicalizer');
+const ml = require('../ml');
 
 const router = express.Router();
 const LOG_PREFIX = '[ask]';
@@ -245,6 +246,69 @@ router.post('/ask', async (req, res) => {
           resolution: canonical.resolution,
         },
         followUps: buildFollowUps(query.intent),
+      });
+    }
+
+    if (query.intent === 'predict_spend') {
+      let forecast = null;
+      let forecastLabel = null;
+
+      if (query.department) {
+        forecast = ml.getDepartmentForecast(query.department);
+        forecastLabel = query.department;
+      } else if (query.category) {
+        forecast = ml.getCategoryForecast(query.category);
+        forecastLabel = query.category;
+      } else {
+        forecast = { predicted: 0, confidence: 0, trend: 'no_data', dataPoints: 0 };
+        forecastLabel = 'all categories';
+      }
+
+      const trendLabel = forecast.trend === 'rising' ? 'trending up'
+                       : forecast.trend === 'falling' ? 'trending down'
+                       : 'relatively stable';
+
+      let summary;
+      if (!forecast.predicted) {
+        summary = `There isn't enough historical data yet to forecast spend for ${forecastLabel}. More transaction months are needed to generate a reliable prediction.`;
+      } else {
+        summary = `Based on historical trends, predicted spend for ${forecastLabel} next month is $${Number(forecast.predicted).toLocaleString()} (${trendLabel}, ${forecast.confidence}% confidence based on ${forecast.dataPoints} months of data).`;
+        if (forecast.monthsUntilHighConfidence > 0) {
+          summary += ` Confidence will improve in ~${forecast.monthsUntilHighConfidence} more month(s) of data.`;
+        }
+      }
+
+      const chartData = (forecast.history || []).map(d => ({ name: d.month, value: d.spend }));
+      if (forecast.predicted) {
+        const nextMonth = forecast.history?.length
+          ? (() => {
+              const last = forecast.history[forecast.history.length - 1].month;
+              const [y, m] = last.split('-').map(Number);
+              const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+              return next;
+            })()
+          : 'next';
+        chartData.push({ name: nextMonth, value: forecast.predicted, predicted: true });
+      }
+
+      console.info(LOG_PREFIX, 'predict_spend response', { forecastLabel, forecast });
+      return res.json({
+        summary,
+        chartType: 'bar',
+        chartData,
+        tableData: [],
+        context: {
+          category: query.category,
+          department: query.department,
+          dateRange: null,
+          groupBy: 'month',
+          metric: 'predict_spend',
+        },
+        followUps: [
+          'Show spending trend over time',
+          'Which department spends the most?',
+          'Show top merchants this quarter',
+        ],
       });
     }
 
