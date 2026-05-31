@@ -8,6 +8,13 @@ import AppShell from "@/components/app/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  useCases,
+  CASE_META,
+  formatEventTime,
+  type CaseRecord,
+  type CaseStatus,
+} from "@/lib/cases";
 
 const transactions = rawData as Transaction[];
 
@@ -85,6 +92,24 @@ export default function ComplianceEngine() {
     []
   );
 
+  // Repeat-offender map: flagged count + flagged value per card.
+  // Drives the policy's card-restriction action ("consistent abuse").
+  const offenders = useMemo(() => {
+    const map: Record<string, { flagged: number; value: number; critical: number }> = {};
+    for (const r of results) {
+      if (r.status === "clear") continue;
+      const cur = map[r.tx.cardCode] ?? { flagged: 0, value: 0, critical: 0 };
+      cur.flagged += 1;
+      cur.value += r.tx.amount;
+      if (r.status === "critical") cur.critical += 1;
+      map[r.tx.cardCode] = cur;
+    }
+    return map;
+  }, [results]);
+
+  const { cases, getCase, applyAction, counts } = useCases();
+  const caseCounts = counts();
+
   const fetchAiReasoning = useCallback(async (result: ComplianceResult) => {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
@@ -133,6 +158,10 @@ export default function ComplianceEngine() {
             <StatCard label="Critical" value={stats.critCount.toString()} accent="var(--status-critical)" />
             <StatCard label="At-Risk Value" value={`$${(stats.totalAmount / 1000).toFixed(0)}k`} accent="var(--status-medium)" />
             <StatCard label="Cards Involved" value={stats.uniqueCards.toString()} accent="var(--accent)" />
+            {(() => {
+              const actioned = caseCounts.escalated + caseCounts.info_requested + caseCounts.flagged + caseCounts.card_restricted + caseCounts.dismissed;
+              return <StatCard label="Actioned" value={actioned.toString()} accent="var(--status-positive)" />;
+            })()}
           </div>
 
           <div className="compliance-panel" style={{ marginTop: 24 }}>
@@ -184,6 +213,7 @@ export default function ComplianceEngine() {
                       key={r.tx.id}
                       result={r}
                       isSelected={selected?.tx.id === r.tx.id}
+                      caseStatus={cases[r.tx.id]?.status}
                       onClick={() => selectResult(r)}
                     />
                   ))}
@@ -200,6 +230,9 @@ export default function ComplianceEngine() {
                     result={selected}
                     aiReasoning={aiReasoning}
                     aiLoading={aiLoading}
+                    caseRecord={getCase(selected.tx.id)}
+                    offender={offenders[selected.tx.cardCode]}
+                    onAction={applyAction}
                   />
                 ) : (
                   <div style={styles.emptyDetail}>
@@ -287,14 +320,30 @@ function DetailPanel({
   result,
   aiReasoning,
   aiLoading,
+  caseRecord,
+  offender,
+  onAction,
 }: {
   result: ComplianceResult;
   aiReasoning: string | null;
   aiLoading: boolean;
+  caseRecord?: CaseRecord;
+  offender?: { flagged: number; value: number; critical: number };
+  onAction: (txId: string, status: CaseStatus, detail: string) => void;
 }) {
   const { tx, violations, mccLabel, riskScore: score } = result;
   const sev = result.overallSeverity;
   const accent = sev ? statusVar(sev) : statusVar("low");
+
+  const cardName = CARD_NAMES[tx.cardCode] ?? tx.cardCode;
+  const flaggedCount = offender?.flagged ?? 0;
+  // Policy: card may be restricted where "consistent abuse" is evident.
+  const isRepeatOffender = flaggedCount >= 5;
+  const needsReceipt = violations.some(
+    (v) => v.ruleId === "receipt_required" || v.ruleId === "approval_threshold" || v.ruleId === "entertainment_missing_info"
+  );
+
+  const act = (status: CaseStatus, detail: string) => onAction(tx.id, status, detail);
 
   return (
     <div style={styles.detail}>
@@ -398,19 +447,99 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* Actions */}
-      <div style={styles.actions}>
-        <Button className="action-btn action-btn--dismiss" style={styles.btnDismiss}>Dismiss</Button>
-        <Button className="action-btn action-btn--escalate" style={styles.btnEscalate}>Escalate to Manager</Button>
-        <Button
-          className="action-btn action-btn--flag"
-          style={{ ...styles.btnFlag, background: sev === "critical" ? statusVar("critical") : statusVar("high") }}
-        >
-          Flag for Review
-        </Button>
+      {/* Repeat-offender notice (policy: card restriction for consistent abuse) */}
+      {isRepeatOffender && caseRecord?.status !== "card_restricted" && (
+        <div style={styles.offenderBanner}>
+          <span style={{ fontSize: 15 }}>⛔</span>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 12.5, color: "var(--status-critical)" }}>
+              Repeat offender — {flaggedCount} flagged charges on {cardName}
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--shell-text-secondary)", marginTop: 2 }}>
+              Brim policy allows restricting or revoking corporate cards where consistent abuse is evident.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Case status + action log */}
+      {caseRecord && (
+        <div style={styles.caseLog}>
+          <div style={styles.caseLogHead}>
+            <span style={styles.caseLogTitle}>Case Activity</span>
+            <span style={{ ...styles.caseStatusPill, color: CASE_META[caseRecord.status].color, borderColor: CASE_META[caseRecord.status].color }}>
+              {CASE_META[caseRecord.status].label}
+            </span>
+          </div>
+          <div style={styles.caseEvents}>
+            {caseRecord.events.slice().reverse().map((e, i) => (
+              <div key={i} style={styles.caseEvent}>
+                <span style={{ ...styles.caseEventDot, background: CASE_META[e.status].color }} />
+                <div style={{ flex: 1 }}>
+                  <div style={styles.caseEventLabel}>{CASE_META[e.status].verb}</div>
+                  <div style={styles.caseEventDetail}>{e.detail}</div>
+                  <div style={styles.caseEventMeta}>{e.actor} · {formatEventTime(e.at)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Actions — policy-grounded escalation workflow */}
+      <div style={styles.actionsWrap}>
+        <div style={styles.actionsLabel}>Take action</div>
+        <div style={styles.actionsGrid}>
+          {needsReceipt && (
+            <Button
+              className="action-btn"
+              style={styles.btnAction}
+              onClick={() => act("info_requested", `Requested receipt${violations.some((v) => v.ruleId === "entertainment_missing_info") ? " + guest names & business purpose" : " & business justification"} from ${cardName}.`)}
+            >
+              <span style={{ marginRight: 6 }}>📄</span> Request receipt &amp; justification
+            </Button>
+          )}
+          <Button
+            className="action-btn action-btn--escalate"
+            style={styles.btnEscalate}
+            onClick={() => act("escalated", `Escalated ${fmtMoneyShort(tx.amount)} ${mccLabel} charge to manager for review.`)}
+          >
+            <span style={{ marginRight: 6 }}>↗</span> Escalate to manager
+          </Button>
+          <Button
+            className="action-btn action-btn--flag"
+            style={{ ...styles.btnFlag, background: sev === "critical" ? statusVar("critical") : statusVar("high") }}
+            onClick={() => act("flagged", `Flagged for finance review (risk score ${score}, ${violations.length} violation${violations.length === 1 ? "" : "s"}).`)}
+          >
+            <span style={{ marginRight: 6 }}>⚑</span> Flag for review
+          </Button>
+          {isRepeatOffender && (
+            <Button
+              className="action-btn"
+              style={styles.btnRestrict}
+              onClick={() => {
+                if (typeof window !== "undefined" && !window.confirm(`Restrict corporate card ${cardName}? This blocks further charges pending investigation of ${flaggedCount} flagged transactions.`)) return;
+                act("card_restricted", `Restricted card ${cardName} after ${flaggedCount} flagged charges (consistent-abuse clause).`);
+              }}
+            >
+              <span style={{ marginRight: 6 }}>⛔</span> Restrict card
+            </Button>
+          )}
+          <Button
+            className="action-btn action-btn--dismiss"
+            style={styles.btnDismiss}
+            onClick={() => act("dismissed", "Reviewed and dismissed as policy-compliant.")}
+          >
+            Dismiss
+          </Button>
+        </div>
       </div>
     </div>
   );
+}
+
+function fmtMoneyShort(n: number): string {
+  return `$${n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function TxField({ label, value }: { label: string; value: string }) {
