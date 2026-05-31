@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 // ─── Case workflow grounded in the Brim Expense Policy ─────────────────────────
 //
@@ -49,7 +49,16 @@ export const CASE_META: Record<
 const STORAGE_KEY = "brim.cases.v1";
 const ACTOR = "Finance Admin";
 
-function load(): Record<string, CaseRecord> {
+type CaseMap = Record<string, CaseRecord>;
+
+// ─── External store (localStorage) read through useSyncExternalStore ────────────
+// This avoids the set-state-in-effect anti-pattern and keeps SSR consistent.
+
+let memoryStore: CaseMap | null = null;
+const listeners = new Set<() => void>();
+const EMPTY: CaseMap = {};
+
+function loadFromStorage(): CaseMap {
   if (typeof window === "undefined") return {};
   try {
     return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
@@ -58,46 +67,55 @@ function load(): Record<string, CaseRecord> {
   }
 }
 
-function save(map: Record<string, CaseRecord>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    /* ignore quota / private mode */
+function getSnapshot(): CaseMap {
+  if (memoryStore === null) memoryStore = loadFromStorage();
+  return memoryStore;
+}
+
+function getServerSnapshot(): CaseMap {
+  return EMPTY;
+}
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function commit(next: CaseMap) {
+  memoryStore = next;
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore quota / private mode */
+    }
   }
+  listeners.forEach((l) => l());
 }
 
 export function useCases() {
-  const [cases, setCases] = useState<Record<string, CaseRecord>>({});
+  const cases = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  useEffect(() => {
-    setCases(load());
+  const applyAction = useCallback((txId: string, status: CaseStatus, detail: string) => {
+    const prev = getSnapshot();
+    const meta = CASE_META[status];
+    const existing = prev[txId];
+    const event: CaseEvent = {
+      status,
+      label: meta.label,
+      detail,
+      actor: ACTOR,
+      at: new Date().toISOString(),
+    };
+    const record: CaseRecord = {
+      txId,
+      status,
+      events: [...(existing?.events ?? []), event],
+    };
+    commit({ ...prev, [txId]: record });
   }, []);
-
-  const applyAction = useCallback(
-    (txId: string, status: CaseStatus, detail: string) => {
-      setCases((prev) => {
-        const meta = CASE_META[status];
-        const existing = prev[txId];
-        const event: CaseEvent = {
-          status,
-          label: meta.label,
-          detail,
-          actor: ACTOR,
-          at: new Date().toISOString(),
-        };
-        const record: CaseRecord = {
-          txId,
-          status,
-          events: [...(existing?.events ?? []), event],
-        };
-        const next = { ...prev, [txId]: record };
-        save(next);
-        return next;
-      });
-    },
-    []
-  );
 
   const getCase = useCallback((txId: string): CaseRecord | undefined => cases[txId], [cases]);
 

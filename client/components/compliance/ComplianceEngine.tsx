@@ -263,14 +263,17 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 function ViolationCard({
   result,
   isSelected,
+  caseStatus,
   onClick,
 }: {
   result: ComplianceResult;
   isSelected: boolean;
+  caseStatus?: CaseStatus;
   onClick: () => void;
 }) {
   const sev = result.overallSeverity;
   const accent = sev ? statusVar(sev) : statusVar("low");
+  const cm = caseStatus ? CASE_META[caseStatus] : null;
   return (
     <button
       className={isSelected ? "violation-card is-selected" : "violation-card"}
@@ -279,6 +282,7 @@ function ViolationCard({
         borderLeftColor: accent,
         background: isSelected ? undefined : styles.violationCard.background,
         outline: isSelected ? undefined : "none",
+        opacity: caseStatus === "dismissed" ? 0.6 : 1,
       }}
       onClick={onClick}
     >
@@ -288,6 +292,11 @@ function ViolationCard({
           ${result.tx.amount.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       </div>
+      {cm && (
+        <div style={{ ...styles.caseTag, color: cm.color, borderColor: cm.color }}>
+          {caseStatus === "card_restricted" ? "⛔" : "●"} {cm.label}
+        </div>
+      )}
       <div style={styles.vcMeta}>
         <span style={styles.vcMetaItem}>{result.mccLabel}</span>
         <span style={styles.vcMetaDot}>·</span>
@@ -1022,5 +1031,127 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     boxShadow: "0 4px 12px -5px rgba(0, 0, 0, 0.4)",
+  },
+  btnRestrict: {
+    flex: 1,
+    padding: "11px 12px",
+    background: "var(--status-critical-bg)",
+    border: "1px solid var(--status-critical)",
+    borderRadius: 9,
+    color: "var(--status-critical)",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  btnAction: {
+    flex: 1,
+    padding: "11px 12px",
+    background: "var(--fill-0)",
+    border: "1px solid var(--shell-border)",
+    borderRadius: 9,
+    color: "var(--shell-text-primary)",
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: "pointer",
+  },
+  caseTag: {
+    display: "inline-block",
+    marginTop: 6,
+    fontSize: 10,
+    fontWeight: 600,
+    padding: "1px 7px",
+    borderRadius: 20,
+    border: "1px solid",
+    background: "var(--fill-0)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.04em",
+  },
+  offenderBanner: {
+    display: "flex",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: "10px 12px",
+    background: "var(--status-critical-bg)",
+    border: "1px solid var(--status-critical)",
+    borderRadius: 10,
+  },
+  caseLog: {
+    background: "var(--fill-1)",
+    border: "1px solid var(--shell-border-soft)",
+    borderRadius: 10,
+    padding: "12px 14px",
+  },
+  caseLogHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  caseLogTitle: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "var(--shell-text-muted)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.07em",
+  },
+  caseStatusPill: {
+    fontSize: 10,
+    fontWeight: 600,
+    padding: "2px 8px",
+    borderRadius: 20,
+    border: "1px solid",
+    background: "var(--fill-0)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.04em",
+  },
+  caseEvents: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 10,
+  },
+  caseEvent: {
+    display: "flex",
+    gap: 9,
+    alignItems: "flex-start",
+  },
+  caseEventDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    marginTop: 4,
+    flex: "none" as const,
+  },
+  caseEventLabel: {
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: "var(--shell-text-primary)",
+  },
+  caseEventDetail: {
+    fontSize: 12,
+    color: "var(--shell-text-secondary)",
+    lineHeight: 1.4,
+    marginTop: 1,
+  },
+  caseEventMeta: {
+    fontSize: 10.5,
+    color: "var(--shell-text-muted)",
+    marginTop: 2,
+  },
+  actionsWrap: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 8,
+  },
+  actionsLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "var(--shell-text-muted)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.07em",
+  },
+  actionsGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8,
   },
 };
