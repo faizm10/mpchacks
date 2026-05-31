@@ -1,4 +1,5 @@
 const { recommendApproval } = require('./geminiService');
+const ml = require('../ml');
 
 function getMonth(dateStr) {
   return String(dateStr || '').slice(0, 7);
@@ -79,7 +80,22 @@ async function generateApprovalRequests(transactions, violations, departments) {
       receiptAttached: txn.receiptAttached,
       preAuthorized: txn.preAuthorized,
       aiRecommendation: null,
+      mlRiskScore: null,
     };
+
+    // ML risk score — computed from historical spend patterns.
+    // Accuracy increases as more transaction data is synced.
+    const empForecast = ml.getEmployeeForecast(txn.employeeId || '');
+    const mlScore = ml.computeRiskScore({
+      expenseAmount:    request.amount,
+      employeeMonthly:  empForecast.history,
+      remainingBudget:  request.departmentBudgetRemaining,
+      policyIssueCount: policyIssues.length,
+    });
+    request.mlRiskScore    = mlScore.riskScore;
+    request.mlRiskLevel    = mlScore.riskLevel;
+    request.mlBreakdown    = mlScore.mlBreakdown;
+    request.mlDataPoints   = empForecast.dataPoints;
 
     request.aiRecommendation = await recommendApproval(request);
     approvals.push(request);
