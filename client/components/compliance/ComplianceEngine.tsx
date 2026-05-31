@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { analyzeTransactions, CARD_NAMES, type ComplianceResult, type Transaction } from "@/lib/compliance";
 import { type Severity } from "@/lib/policy";
 import rawData from "@/lib/transactions.json";
@@ -352,7 +353,33 @@ function DetailPanel({
     (v) => v.ruleId === "receipt_required" || v.ruleId === "approval_threshold" || v.ruleId === "entertainment_missing_info"
   );
 
-  const act = (status: CaseStatus, detail: string) => onAction(tx.id, status, detail);
+  const act = (status: CaseStatus, detail: string) => {
+    onAction(tx.id, status, detail);
+    const meta = CASE_META[status];
+    const title = `${meta.verb} · ${tx.merchant}`;
+    if (status === "card_restricted") {
+      toast.error(title, { description: detail });
+    } else if (status === "dismissed") {
+      toast.success(title, { description: detail });
+    } else if (status === "flagged") {
+      toast.warning(title, { description: detail });
+    } else {
+      toast.info(title, { description: detail });
+    }
+  };
+
+  const confirmRestrict = () => {
+    toast.warning(`Restrict corporate card ${cardName}?`, {
+      description: `This blocks further charges pending investigation of ${flaggedCount} flagged transactions.`,
+      duration: 10000,
+      action: {
+        label: "Restrict card",
+        onClick: () =>
+          act("card_restricted", `Restricted card ${cardName} after ${flaggedCount} flagged charges (consistent-abuse clause).`),
+      },
+      cancel: { label: "Cancel", onClick: () => {} },
+    });
+  };
 
   return (
     <div style={styles.detail}>
@@ -526,10 +553,7 @@ function DetailPanel({
             <Button
               className="action-btn"
               style={styles.btnRestrict}
-              onClick={() => {
-                if (typeof window !== "undefined" && !window.confirm(`Restrict corporate card ${cardName}? This blocks further charges pending investigation of ${flaggedCount} flagged transactions.`)) return;
-                act("card_restricted", `Restricted card ${cardName} after ${flaggedCount} flagged charges (consistent-abuse clause).`);
-              }}
+              onClick={confirmRestrict}
             >
               <span style={{ marginRight: 6 }}>⛔</span> Restrict card
             </Button>
