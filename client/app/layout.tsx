@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Caveat, IBM_Plex_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 import "../styles/tokens.css";
 import "./theme.css";
 import "./compliance.css";
@@ -31,6 +32,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${caveat.variable} ${ibmPlexMono.variable}`}>
         <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+        <Toaster position="bottom-right" richColors closeButton />
       </body>
     </html>
   );
