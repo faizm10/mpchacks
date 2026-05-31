@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef } from "react";
 import { analyzeTransactions, CARD_NAMES, type ComplianceResult, type Transaction } from "@/lib/compliance";
 import { type Severity } from "@/lib/policy";
 import rawData from "@/lib/transactions.json";
-import AppRail from "@/components/wireframe/AppRail";
+import AppShell from "@/components/app/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -14,10 +14,6 @@ const transactions = rawData as Transaction[];
 
 function statusVar(sev: Severity | string): string {
   return `var(--status-${sev})`;
-}
-
-function statusBgVar(sev: Severity | string): string {
-  return `var(--status-${sev}-bg)`;
 }
 
 function riskColor(score: number): string {
@@ -119,22 +115,19 @@ export default function ComplianceEngine() {
   );
 
   return (
-    <div className="app">
-      <AppRail complianceActive />
-
-      <div className="stage stage--sketchboard">
-        <div className="stage__inner stage__inner--compliance compliance">
-          <header className="sec-head">
-            <div className="sec-kicker">Live Feature · ⚑</div>
-            <h1 className="sec-title">Policy Compliance Engine</h1>
-            <p className="sec-lead">
-              {transactions.length.toLocaleString()} transactions scanned ·{" "}
-              <span style={{ color: statusVar("critical") }}>{stats.critCount} critical</span> ·{" "}
-              <span style={{ color: statusVar("high") }}>{stats.highCount} high</span> ·{" "}
-              {stats.totalFlagged} total flagged
-            </p>
-          </header>
-
+    <AppShell
+      kicker="Live Feature · ⚑"
+      title="Policy Compliance Engine"
+      subtitle={
+        <>
+          {transactions.length.toLocaleString()} transactions scanned ·{" "}
+          <span style={{ color: statusVar("critical") }}>{stats.critCount} critical</span> ·{" "}
+          <span style={{ color: statusVar("high") }}>{stats.highCount} high</span> ·{" "}
+          {stats.totalFlagged} total flagged
+        </>
+      }
+    >
+      <div className="compliance">
           <div style={styles.statsRow}>
             <StatCard label="Flagged" value={stats.totalFlagged.toString()} accent="var(--status-high)" />
             <StatCard label="Critical" value={stats.critCount.toString()} accent="var(--status-critical)" />
@@ -220,9 +213,8 @@ export default function ComplianceEngine() {
               </div>
             </div>
           </div>
-        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -300,7 +292,7 @@ function DetailPanel({
   aiReasoning: string | null;
   aiLoading: boolean;
 }) {
-  const { tx, violations, mccLabel, riskScore: score, status } = result;
+  const { tx, violations, mccLabel, riskScore: score } = result;
   const sev = result.overallSeverity;
   const accent = sev ? statusVar(sev) : statusVar("low");
 
