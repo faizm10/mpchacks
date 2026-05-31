@@ -292,7 +292,7 @@ function DetailPanel({
   aiReasoning: string | null;
   aiLoading: boolean;
 }) {
-  const { tx, violations, mccLabel, riskScore: score, status } = result;
+  const { tx, violations, mccLabel, riskScore: score } = result;
   const sev = result.overallSeverity;
   const accent = sev ? statusVar(sev) : statusVar("low");
 
