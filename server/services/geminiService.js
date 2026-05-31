@@ -1,28 +1,45 @@
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const { GoogleGenAI } = require('@google/genai');
 
-async function callGemini(prompt) {
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+
+let aiClient = null;
+
+function getAiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: 'application/json',
-    },
-  };
+  if (!aiClient) {
+    aiClient = new GoogleGenAI({ apiKey });
+  }
+
+  return aiClient;
+}
+
+function extractText(response) {
+  if (!response) return null;
+  if (typeof response.text === 'string') return response.text;
+  if (typeof response.text === 'function') return response.text();
+  return response?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+}
+
+async function callGemini(prompt) {
+  const ai = getAiClient();
+  if (!ai) return null;
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+        topP: 0.9
+      },
     });
-    if (!response.ok) return null;
-    const json = await response.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    const text = await extractText(response);
     if (!text) return null;
+
     return JSON.parse(text);
   } catch (_err) {
     return null;
