@@ -113,14 +113,31 @@ export default function FleetTransactionMap() {
     [mapData.routes, fleet],
   );
 
+  const routesToShow = useMemo(() => {
+    if (!showRoutes) return [];
+    const pool =
+      fleet !== "all"
+        ? activeRoute
+          ? [activeRoute]
+          : []
+        : mapData.routes;
+    return pool.filter((r) => r.coordinates.length > 1);
+  }, [showRoutes, fleet, activeRoute, mapData.routes]);
+
   const displayArcs = useMemo(() => {
-    if (!showArcs || !activeRoute) return [];
-    let arcs = activeRoute.arcs;
+    if (!showArcs) return [];
+    const pool =
+      fleet !== "all"
+        ? activeRoute
+          ? activeRoute.arcs
+          : []
+        : mapData.routes.flatMap((r) => r.arcs);
+    let arcs = pool;
     if (severity === "flagged") {
       arcs = arcs.filter((a) => a.severity !== "clear" && a.severity !== "low");
     }
-    return sampleArcs(arcs, 280);
-  }, [showArcs, activeRoute, severity]);
+    return sampleArcs(arcs, fleet !== "all" ? 280 : 420);
+  }, [showArcs, fleet, activeRoute, mapData.routes, severity]);
 
   const onPointClick = useCallback(
     (feature: GeoJSON.Feature<GeoJSON.Point>, _coords: [number, number]) => {
@@ -157,10 +174,7 @@ export default function FleetTransactionMap() {
     (action?: MapChatAction) => {
       if (!action) return;
       if (action.flyTo) setFlyTarget({ ...action.flyTo });
-      if (action.setFleet) {
-        setFleet(action.setFleet);
-        setShowArcs(false);
-      }
+      if (action.setFleet) setFleet(action.setFleet);
       if (action.setSeverity) setSeverity(action.setSeverity);
       if (action.selectId) {
         const pt =
@@ -203,7 +217,6 @@ export default function FleetTransactionMap() {
             onChange={(e) => {
               setFleet(e.target.value);
               setSelected(null);
-              if (e.target.value === "all") setShowArcs(false);
             }}
             aria-label="Fleet unit"
           >
@@ -228,7 +241,6 @@ export default function FleetTransactionMap() {
               type="checkbox"
               checked={showRoutes}
               onChange={(e) => setShowRoutes(e.target.checked)}
-              disabled={fleet === "all"}
             />
             Routes
           </label>
@@ -237,7 +249,6 @@ export default function FleetTransactionMap() {
               type="checkbox"
               checked={showArcs}
               onChange={(e) => setShowArcs(e.target.checked)}
-              disabled={fleet === "all"}
             />
             Flow arcs
           </label>
@@ -261,20 +272,22 @@ export default function FleetTransactionMap() {
               <MapFlyTo target={flyTarget} />
               <MapControls showZoom showFullscreen position="top-right" />
 
-          {showRoutes && activeRoute && activeRoute.coordinates.length > 1 && (
+          {routesToShow.map((route) => (
             <MapRoute
-              id={`fleet-route-${activeRoute.fleetCode}`}
-              coordinates={activeRoute.coordinates}
+              key={route.fleetCode}
+              id={`fleet-route-${route.fleetCode}`}
+              coordinates={route.coordinates}
               color="var(--accent)"
               width={2.5}
-              opacity={0.55}
+              opacity={fleet === "all" ? 0.35 : 0.55}
               dashArray={[2, 2]}
+              interactive={fleet !== "all"}
             />
-          )}
+          ))}
 
           {displayArcs.length > 0 && (
             <MapArc
-              id={`fleet-arcs-${activeRoute?.fleetCode}`}
+              id={`fleet-arcs-${fleet === "all" ? "all" : activeRoute?.fleetCode}`}
               data={displayArcs.map((a) => ({
                 id: a.id,
                 from: a.from,
@@ -377,9 +390,9 @@ export default function FleetTransactionMap() {
           </div>
         )}
 
-        {fleet === "all" && (
+        {fleet === "all" && !showRoutes && !showArcs && (
           <p className="ux-map-hint">
-            Select a fleet unit to draw routes, or ask the map assistant on the right.
+            Turn on Routes or Flow arcs above, select a fleet unit, or ask the map assistant.
           </p>
         )}
           </div>
