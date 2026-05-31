@@ -1,30 +1,50 @@
 import { NextRequest } from "next/server";
 import type { ComplianceResult } from "@/lib/compliance";
 
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+
+type AnalyzeBody = {
+  result: ComplianceResult;
+  cardMonthlyHistory?: { month: string; spend: number }[];
+  remainingBudget?: number;
+};
+
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const result: ComplianceResult = body.result;
-
-  const tx = result.tx;
-  const violations = result.violations;
-
   try {
-    const severityRank: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
-    const topSeverity = [...violations]
-      .sort((a, b) => (severityRank[b.severity] ?? -1) - (severityRank[a.severity] ?? -1))[0]?.severity;
+    const body = (await req.json()) as AnalyzeBody;
 
-    const reasonPreview = violations.slice(0, 2).map((v) => v.reason).join(" ");
-    const total = Number(tx.amount || 0).toFixed(2);
-    const count = violations.length;
+    if (!body?.result?.tx) {
+      return Response.json({ reasoning: null, riskScore: null, error: "Missing result payload" }, { status: 400 });
+    }
 
-    const reasoning =
-      count === 0
-        ? `No policy violations were detected for this $${total} ${result.mccLabel.toLowerCase()} transaction at ${tx.merchant}. This looks compliant based on the current rule set.`
-        : `${count} policy issue${count > 1 ? "s were" : " was"} flagged on this $${total} transaction at ${tx.merchant}${topSeverity ? ` (${topSeverity} severity)` : ""}. ${reasonPreview} Recommended action: ${count > 1 || topSeverity === "critical" || topSeverity === "high" ? "escalate for manager review before approval." : "request clarification and receipt details before approval."}`;
+    const backendRes = await fetch(`${BACKEND_URL}/api/compliance/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
 
-    return Response.json({ reasoning });
+    const data = await backendRes.json().catch(() => ({}));
+
+    if (!backendRes.ok) {
+      return Response.json(
+        {
+          reasoning: null,
+          riskScore: null,
+          error: data?.error || "Compliance analysis request failed.",
+        },
+        { status: backendRes.status }
+      );
+    }
+
+    return Response.json({
+      reasoning: data?.reasoning ?? null,
+      riskScore: typeof data?.riskScore === "number" ? data.riskScore : null,
+      riskLevel: data?.riskLevel ?? null,
+      mlBreakdown: data?.mlBreakdown ?? null,
+    });
   } catch (err) {
-    console.error("Analyze API error:", err);
-    return Response.json({ reasoning: null }, { status: 500 });
+    console.error("Analyze API proxy error:", err);
+    return Response.json({ reasoning: null, riskScore: null }, { status: 500 });
   }
 }

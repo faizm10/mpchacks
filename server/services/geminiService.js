@@ -306,6 +306,73 @@ async function summarizeCalculatedResult(question, result) {
   return 'The query was processed successfully.';
 }
 
+async function callGeminiText(prompt, label = 'unknown') {
+  const ai = getAiClient();
+  if (!ai) {
+    console.warn(LOG_PREFIX, 'skipping Gemini text call because GEMINI_API_KEY is not set', { label });
+    return null;
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: {
+        temperature: 0.3,
+        topP: 0.9,
+      },
+    });
+
+    const text = extractText(response);
+    if (!text) {
+      console.warn(LOG_PREFIX, 'Gemini text response had no text', { label });
+      return null;
+    }
+
+    return text.trim();
+  } catch (err) {
+    console.error(LOG_PREFIX, 'Gemini text call failed', { label, error: err.message });
+    return null;
+  }
+}
+
+async function generateComplianceAnalysis({ transaction, violations, mccLabel, riskScore, riskLevel }) {
+  const payload = {
+    transaction: {
+      id: transaction?.id,
+      merchant: transaction?.merchant,
+      amount: transaction?.amount,
+      mcc: transaction?.mcc,
+      mccLabel,
+      cardCode: transaction?.cardCode,
+      city: transaction?.city,
+      state: transaction?.state,
+      txDate: transaction?.txDate,
+    },
+    violations: (violations || []).map(v => ({
+      ruleId: v.ruleId,
+      ruleTitle: v.ruleTitle,
+      severity: v.severity,
+      confidence: v.confidence,
+      reason: v.reason,
+      recommendation: v.recommendation,
+    })),
+    riskScore,
+    riskLevel,
+  };
+
+  const prompt = [
+    'You are a corporate card policy analyst writing a brief summary for a finance reviewer.',
+    'Write 2-4 concise sentences in plain English.',
+    'Include: transaction amount and merchant, severity of issues, computed risk score out of 100, key policy triggers, and a clear recommended action.',
+    'Use only the facts provided — do not invent merchants, amounts, or policies.',
+    'Do not use bullet points or markdown.',
+    JSON.stringify(payload),
+  ].join('\n');
+
+  return callGeminiText(prompt, 'complianceAnalysis');
+}
+
 async function explainPolicyViolation(transaction, policyRule) {
   const prompt = [
     'Write a concise policy explanation for why this transaction was flagged.',
@@ -362,6 +429,7 @@ module.exports = {
   resolveFollowUp,
   summarizeCalculatedResult,
   explainPolicyViolation,
+  generateComplianceAnalysis,
   recommendApproval,
   generateInsightCards,
 };

@@ -2,6 +2,7 @@ const express = require('express');
 const { readJson, writeJson } = require('../services/fileStore');
 const { scanTransactions } = require('../services/complianceService');
 const { addViolationExplanations } = require('../services/violationExplanationService');
+const { analyzeComplianceResult } = require('../services/complianceAnalysisService');
 
 const router = express.Router();
 
@@ -21,6 +22,15 @@ router.post('/compliance/scan', async (_req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Compliance scan failed' });
+  }
+});
+
+router.post('/compliance/analyze', async (req, res) => {
+  try {
+    const analysis = await analyzeComplianceResult(req.body);
+    res.json(analysis);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Compliance analysis failed' });
   }
 });
 

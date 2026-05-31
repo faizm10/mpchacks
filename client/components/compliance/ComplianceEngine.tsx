@@ -19,6 +19,26 @@ import {
 
 const transactions = rawData as Transaction[];
 
+const CARD_MONTHLY_BUDGET = 20000;
+
+function buildCardMonthlyHistory(allTx: Transaction[], cardCode: string) {
+  const byMonth: Record<string, number> = {};
+  for (const tx of allTx) {
+    if (tx.cardCode !== cardCode || tx.type !== "Debit") continue;
+    const month = tx.txDate.slice(0, 7);
+    byMonth[month] = (byMonth[month] || 0) + tx.amount;
+  }
+  return Object.entries(byMonth)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, spend]) => ({ month, spend: Math.round(spend * 100) / 100 }));
+}
+
+function remainingCardBudget(history: { month: string; spend: number }[]) {
+  if (!history.length) return CARD_MONTHLY_BUDGET;
+  const spentThisMonth = history[history.length - 1]?.spend ?? 0;
+  return Math.max(0, CARD_MONTHLY_BUDGET - spentThisMonth);
+}
+
 
 function statusVar(sev: Severity | string): string {
   return `var(--status-${sev})`;
@@ -59,8 +79,22 @@ export default function ComplianceEngine() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ComplianceResult | null>(null);
   const [aiReasoning, setAiReasoning] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  const [backendRiskScore, setBackendRiskScore] = useState<number | null>(null);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  const uniqueCards = useMemo(
+    () => [...new Set(transactions.map((t) => t.cardCode))].sort(),
+    []
+  );
+
+  const cardMonthlyHistoryByCard = useMemo(() => {
+    const map: Record<string, { month: string; spend: number }[]> = {};
+    for (const cardCode of uniqueCards) {
+      map[cardCode] = buildCardMonthlyHistory(transactions, cardCode);
+    }
+    return map;
+  }, [uniqueCards]);
 
   const displayResults = useMemo(() => {
     let list = flagged;
@@ -88,11 +122,6 @@ export default function ComplianceEngine() {
     return { totalFlagged, totalAmount, critCount, highCount, uniqueCards };
   }, [flagged, critical]);
 
-  const uniqueCards = useMemo(
-    () => [...new Set(transactions.map((t) => t.cardCode))].sort(),
-    []
-  );
-
   // Repeat-offender map: flagged count + flagged value per card.
   // Drives the policy's card-restriction action ("consistent abuse").
   const offenders = useMemo(() => {
@@ -111,33 +140,50 @@ export default function ComplianceEngine() {
   const { cases, getCase, applyAction, counts } = useCases();
   const caseCounts = counts();
 
-  const fetchAiReasoning = useCallback(async (result: ComplianceResult) => {
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
-    setAiLoading(true);
-    setAiReasoning(null);
-    try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result }),
-        signal: abortRef.current.signal,
-      });
-      const data = await res.json();
-      setAiReasoning(data.reasoning ?? null);
-    } catch (e: unknown) {
-      if ((e as Error).name !== "AbortError") setAiReasoning(null);
-    } finally {
-      setAiLoading(false);
-    }
-  }, []);
+  const fetchAnalysis = useCallback(
+    async (result: ComplianceResult) => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      setAnalyzeLoading(true);
+      setAiReasoning(null);
+      setBackendRiskScore(null);
+
+      const history = cardMonthlyHistoryByCard[result.tx.cardCode] ?? [];
+
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            result,
+            cardMonthlyHistory: history,
+            remainingBudget: remainingCardBudget(history),
+          }),
+          signal: abortRef.current.signal,
+        });
+        const data = await res.json();
+        setAiReasoning(data.reasoning ?? null);
+        if (typeof data.riskScore === "number") {
+          setBackendRiskScore(data.riskScore);
+        }
+      } catch (e: unknown) {
+        if ((e as Error).name !== "AbortError") {
+          setAiReasoning(null);
+          setBackendRiskScore(null);
+        }
+      } finally {
+        setAnalyzeLoading(false);
+      }
+    },
+    [cardMonthlyHistoryByCard]
+  );
 
   const selectResult = useCallback(
     (r: ComplianceResult) => {
       setSelected(r);
-      fetchAiReasoning(r);
+      fetchAnalysis(r);
     },
-    [fetchAiReasoning]
+    [fetchAnalysis]
   );
 
   return (
@@ -230,7 +276,8 @@ export default function ComplianceEngine() {
                   <DetailPanel
                     result={selected}
                     aiReasoning={aiReasoning}
-                    aiLoading={aiLoading}
+                    analyzeLoading={analyzeLoading}
+                    backendRiskScore={backendRiskScore}
                     caseRecord={getCase(selected.tx.id)}
                     offender={offenders[selected.tx.cardCode]}
                     onAction={applyAction}
@@ -329,19 +376,22 @@ function ViolationCard({
 function DetailPanel({
   result,
   aiReasoning,
-  aiLoading,
+  analyzeLoading,
+  backendRiskScore,
   caseRecord,
   offender,
   onAction,
 }: {
   result: ComplianceResult;
   aiReasoning: string | null;
-  aiLoading: boolean;
+  analyzeLoading: boolean;
+  backendRiskScore: number | null;
   caseRecord?: CaseRecord;
   offender?: { flagged: number; value: number; critical: number };
   onAction: (txId: string, status: CaseStatus, detail: string) => void;
 }) {
-  const { tx, violations, mccLabel, riskScore: score } = result;
+  const { tx, violations, mccLabel } = result;
+  const score = backendRiskScore;
   const sev = result.overallSeverity;
   const accent = sev ? statusVar(sev) : statusVar("low");
 
@@ -399,20 +449,27 @@ function DetailPanel({
       {/* Risk score */}
       <div style={styles.riskSection}>
         <div style={styles.riskLabel}>Risk Score</div>
-        <div style={styles.riskRow}>
-          <div style={styles.riskBarTrackWide}>
-            <div
-              style={{
-                ...styles.riskBarFillWide,
-                width: `${score}%`,
-                background: riskColor(score),
-              }}
-            />
+        {analyzeLoading || score === null ? (
+          <div style={styles.riskSkeletonRow}>
+            <div style={styles.riskSkeletonBar} />
+            <div style={styles.riskSkeletonNum} />
           </div>
-          <span style={{ ...styles.riskNumLarge, color: riskColor(score) }}>
-            {score}
-          </span>
-        </div>
+        ) : (
+          <div style={styles.riskRow}>
+            <div style={styles.riskBarTrackWide}>
+              <div
+                style={{
+                  ...styles.riskBarFillWide,
+                  width: `${score}%`,
+                  background: riskColor(score),
+                }}
+              />
+            </div>
+            <span style={{ ...styles.riskNumLarge, color: riskColor(score) }}>
+              {score}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Transaction details */}
@@ -464,10 +521,10 @@ function DetailPanel({
             <TooltipContent>Generated from policy + transaction context</TooltipContent>
           </Tooltip>
           <span style={styles.aiLabel}>AI Context</span>
-          {aiLoading && <span style={styles.aiSpinner}>analyzing…</span>}
+          {analyzeLoading && <span style={styles.aiSpinner}>analyzing…</span>}
         </div>
         <div style={styles.aiBody}>
-          {aiLoading ? (
+          {analyzeLoading ? (
             <div style={styles.aiSkeleton}>
               <div style={{ ...styles.aiSkeletonLine, width: "95%" }} />
               <div style={{ ...styles.aiSkeletonLine, width: "80%" }} />
@@ -545,7 +602,13 @@ function DetailPanel({
           <Button
             className="action-btn action-btn--flag"
             style={{ ...styles.btnFlag, background: sev === "critical" ? statusVar("critical") : statusVar("high") }}
-            onClick={() => act("flagged", `Flagged for finance review (risk score ${score}, ${violations.length} violation${violations.length === 1 ? "" : "s"}).`)}
+            disabled={score === null}
+            onClick={() =>
+              act(
+                "flagged",
+                `Flagged for finance review (risk score ${score ?? "—"}, ${violations.length} violation${violations.length === 1 ? "" : "s"}).`
+              )
+            }
           >
             <span style={{ marginRight: 6 }}>⚑</span> Flag for review
           </Button>
@@ -873,6 +936,25 @@ const styles = {
     fontVariantNumeric: "tabular-nums",
     width: 36,
     textAlign: "right" as const,
+  },
+  riskSkeletonRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  riskSkeletonBar: {
+    flex: 1,
+    height: 7,
+    background: "var(--shell-chip-bg)",
+    borderRadius: 4,
+    animation: "pulse 1.2s ease-in-out infinite",
+  },
+  riskSkeletonNum: {
+    width: 36,
+    height: 24,
+    background: "var(--shell-chip-bg)",
+    borderRadius: 4,
+    animation: "pulse 1.2s ease-in-out infinite",
   },
   txGrid: {
     display: "grid",
