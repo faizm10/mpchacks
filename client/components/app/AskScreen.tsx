@@ -4,7 +4,14 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import AppShell from "./AppShell";
 import { dashboardKpis, fmtMoney } from "@/lib/analytics";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type ResultRow = Record<string, string | number | boolean | null | undefined>;
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  chartType?: string | null;
+  chartData?: ResultRow[];
+  tableData?: ResultRow[];
+};
 
 const SUGGESTIONS = [
   "What are we spending the most on?",
@@ -38,7 +45,16 @@ export default function AskScreen() {
         body: JSON.stringify({ messages: next }),
       });
       const data = await res.json();
-      setMessages([...next, { role: "assistant", content: data.reply ?? "AI unavailable — check GEMINI_API_KEY in the backend environment." }]);
+      setMessages([
+        ...next,
+        {
+          role: "assistant",
+          content: data.reply ?? "AI unavailable — check GEMINI_API_KEY in the backend environment.",
+          chartType: data.chartType ?? null,
+          chartData: Array.isArray(data.chartData) ? data.chartData : [],
+          tableData: Array.isArray(data.tableData) ? data.tableData : [],
+        },
+      ]);
     } catch {
       setMessages([...next, { role: "assistant", content: "Something went wrong reaching the AI service." }]);
     } finally {
@@ -81,6 +97,9 @@ export default function AskScreen() {
               >
                 {m.role === "assistant" && <span style={{ color: "var(--accent)", fontWeight: 700, marginRight: 6 }}>✦</span>}
                 {m.content}
+                {m.role === "assistant" && ((m.chartData?.length || 0) > 0 || (m.tableData?.length || 0) > 0) && (
+                  <ResultPreview rows={(m.tableData?.length ? m.tableData : m.chartData) ?? []} />
+                )}
               </div>
             </div>
           ))}
@@ -111,4 +130,47 @@ export default function AskScreen() {
       </div>
     </AppShell>
   );
+}
+
+function ResultPreview({ rows }: { rows: ResultRow[] }) {
+  const previewRows = rows.slice(0, 5);
+  if (previewRows.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+      {previewRows.map((row, index) => (
+        <div
+          key={index}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "7px 0",
+            borderTop: "1px solid var(--line-soft)",
+            fontSize: 12.5,
+          }}
+        >
+          <span style={{ color: "var(--ink-soft)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {labelForRow(row)}
+          </span>
+          <span style={{ fontWeight: 700, flex: "none" }}>{valueForRow(row)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function labelForRow(row: ResultRow) {
+  return String(row.category ?? row.name ?? row.fleetUnit ?? row.violationType ?? row.month ?? row.metric ?? row.merchant ?? row.period ?? `Item ${row.rank ?? ""}`);
+}
+
+function valueForRow(row: ResultRow) {
+  const raw = row.total ?? row.value ?? row.violationCount ?? row.count ?? row.amount;
+  if (typeof raw === "number") {
+    const label = "violationCount" in row || "count" in row || "metric" in row
+      ? raw.toLocaleString()
+      : `$${raw.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    return label;
+  }
+  return raw == null ? "" : String(raw);
 }
