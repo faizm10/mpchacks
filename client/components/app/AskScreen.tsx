@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, type KeyboardEvent } from "react";
 import AppShell from "./AppShell";
 import { dashboardKpis, fmtMoney } from "@/lib/analytics";
 
@@ -26,10 +26,18 @@ export default function AskScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
 
   async function send(text: string) {
     const q = text.trim();
@@ -59,74 +67,127 @@ export default function AskScreen() {
       setMessages([...next, { role: "assistant", content: "Something went wrong reaching the AI service." }]);
     } finally {
       setLoading(false);
+      textareaRef.current?.focus();
     }
   }
 
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send(input);
+    }
+  }
+
+  const hasThread = messages.length > 0 || loading;
+
   return (
-    <AppShell
-      kicker="Hero Capability"
-      title="Ask Brim"
-      subtitle="ChatGPT for your fleet's spending. Ask in plain English — answers come from your real transaction data."
-      fullBleed
-    >
-      <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 132px)", maxWidth: 820, margin: "0 auto", width: "100%", padding: "0 24px" }}>
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "24px 0", display: "flex", flexDirection: "column", gap: 16 }}>
-          {messages.length === 0 && (
-            <div style={{ textAlign: "center", margin: "auto 0", color: "var(--muted)" }}>
-              <div style={{ fontSize: 40, color: "var(--accent)", marginBottom: 12 }}>✦</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)" }}>Ask anything about your fleet spend</div>
-              <div style={{ fontSize: 13, marginTop: 6 }}>
-                {kpis.txCount.toLocaleString()} transactions · {fmtMoney(kpis.totalSpend, { compact: true })} analyzed
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 24, maxWidth: 560 }}>
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} className="ux-btn ux-btn--sm" onClick={() => send(s)}>{s}</button>
-                ))}
-              </div>
+    <AppShell fullBleed>
+      <div className="ux-ask">
+        <header className="ux-ask__topbar">
+          <div className="ux-ask__topbar-inner">
+            <div className="ux-ask__brand">
+              <span className="ux-ask__brand-mark" aria-hidden>✦</span>
+              <span className="ux-ask__brand-name">Ask Brim</span>
+              <span className="ux-ask__brand-meta">Fleet spend</span>
             </div>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-              <div
-                style={{
-                  maxWidth: "85%", padding: "12px 16px", borderRadius: 14, fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap",
-                  ...(m.role === "user"
-                    ? { background: "var(--accent)", color: "#fff", borderBottomRightRadius: 4 }
-                    : { background: "var(--fill-0)", border: "1px solid var(--line)", borderBottomLeftRadius: 4 }),
-                }}
+            {hasThread && (
+              <button
+                type="button"
+                className="ux-ask__new"
+                onClick={() => { setMessages([]); setInput(""); }}
               >
-                {m.role === "assistant" && <span style={{ color: "var(--accent)", fontWeight: 700, marginRight: 6 }}>✦</span>}
-                {m.content}
-                {m.role === "assistant" && ((m.chartData?.length || 0) > 0 || (m.tableData?.length || 0) > 0) && (
-                  <ResultPreview rows={(m.tableData?.length ? m.tableData : m.chartData) ?? []} />
+                New chat
+              </button>
+            )}
+          </div>
+        </header>
+
+        <div ref={scrollRef} className="ux-ask__thread">
+          <div className="ux-ask__thread-inner">
+            {!hasThread && (
+              <div className="ux-ask__welcome">
+                <div className="ux-ask__welcome-icon" aria-hidden>✦</div>
+                <h2 className="ux-ask__welcome-title">What can I help you with?</h2>
+                <p className="ux-ask__welcome-sub">
+                  Ask in plain English about spend, vendors, compliance, and fleet units.
+                  <span className="ux-ask__welcome-meta">
+                    {kpis.txCount.toLocaleString()} transactions · {fmtMoney(kpis.totalSpend, { compact: true })} analyzed
+                  </span>
+                </p>
+                <div className="ux-ask__suggestions">
+                  {SUGGESTIONS.map((s) => (
+                    <button key={s} type="button" className="ux-ask__suggestion" onClick={() => send(s)}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {messages.map((m, i) => (
+              <article
+                key={i}
+                className={`ux-ask__turn${m.role === "user" ? " ux-ask__turn--user" : " ux-ask__turn--assistant"}`}
+              >
+                {m.role === "assistant" && (
+                  <div className="ux-ask__avatar" aria-hidden>✦</div>
                 )}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div style={{ display: "flex", justifyContent: "flex-start" }}>
-              <div style={{ padding: "12px 16px", borderRadius: 14, background: "var(--fill-0)", border: "1px solid var(--line)", fontSize: 14, color: "var(--muted)", animation: "pulse 1.2s infinite" }}>
-                ✦ analyzing your data…
-              </div>
-            </div>
-          )}
+                <div className="ux-ask__content">
+                  {m.role === "user" ? (
+                    <div className="ux-ask__user-bubble">{m.content}</div>
+                  ) : (
+                    <div className="ux-ask__assistant-text">{m.content}</div>
+                  )}
+                  {m.role === "assistant" && ((m.chartData?.length || 0) > 0 || (m.tableData?.length || 0) > 0) && (
+                    <ResultPreview rows={(m.tableData?.length ? m.tableData : m.chartData) ?? []} />
+                  )}
+                </div>
+              </article>
+            ))}
+
+            {loading && (
+              <article className="ux-ask__turn ux-ask__turn--assistant">
+                <div className="ux-ask__avatar" aria-hidden>✦</div>
+                <div className="ux-ask__content">
+                  <div className="ux-ask__typing" aria-live="polite" aria-label="Brim is thinking">
+                    <span /><span /><span />
+                  </div>
+                </div>
+              </article>
+            )}
+          </div>
         </div>
 
-        <form
-          onSubmit={(e) => { e.preventDefault(); send(input); }}
-          style={{ padding: "16px 0 24px", display: "flex", gap: 8 }}
-        >
-          <div className="ux-input" style={{ flex: 1 }}>
-            <span className="ux-input__ico">✦</span>
-            <input
-              placeholder="Ask about spend, vendors, compliance, fleet units…"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <button type="submit" className="ux-btn ux-btn--primary" disabled={loading || !input.trim()}>Ask</button>
-        </form>
+        <footer className="ux-ask__composer-wrap">
+          <form
+            className="ux-ask__composer"
+            onSubmit={(e) => { e.preventDefault(); send(input); }}
+          >
+            <div className="ux-ask__composer-box">
+              <textarea
+                ref={textareaRef}
+                className="ux-ask__input"
+                placeholder="Message Brim…"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={1}
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="ux-ask__send"
+                disabled={loading || !input.trim()}
+                aria-label="Send message"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M12 4l0 16M12 4l6 6M12 4L6 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+            <p className="ux-ask__hint">Brim can make mistakes. Verify important figures against your ledger.</p>
+          </form>
+        </footer>
       </div>
     </AppShell>
   );
@@ -137,23 +198,11 @@ function ResultPreview({ rows }: { rows: ResultRow[] }) {
   if (previewRows.length === 0) return null;
 
   return (
-    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+    <div className="ux-ask__table">
       {previewRows.map((row, index) => (
-        <div
-          key={index}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "7px 0",
-            borderTop: "1px solid var(--line-soft)",
-            fontSize: 12.5,
-          }}
-        >
-          <span style={{ color: "var(--ink-soft)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {labelForRow(row)}
-          </span>
-          <span style={{ fontWeight: 700, flex: "none" }}>{valueForRow(row)}</span>
+        <div key={index} className="ux-ask__table-row">
+          <span className="ux-ask__table-label">{labelForRow(row)}</span>
+          <span className="ux-ask__table-value">{valueForRow(row)}</span>
         </div>
       ))}
     </div>
