@@ -1,8 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import Link from "next/link";
 import AppShell from "./AppShell";
+
+const FleetTransactionMap = dynamic(() => import("./FleetTransactionMap"), {
+  ssr: false,
+  loading: () => (
+    <div
+      className="ux-card"
+      style={{ minHeight: 420, display: "grid", placeItems: "center", color: "var(--muted)" }}
+    >
+      Loading map…
+    </div>
+  ),
+});
 import { Card, Kpi, HBars, Donut, LineChart, CatDot } from "./ui";
 import {
   dashboardKpis,
@@ -71,6 +84,10 @@ export default function DashboardScreen() {
             format={(n) => fmtMoney(n, { compact: true })}
           />
         </Card>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <FleetTransactionMap />
       </div>
 
       {/* Attention feed + fleet */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import AppShell from "./AppShell";
 import { Card, CatDot } from "./ui";
@@ -18,6 +18,126 @@ const CATEGORIES: (SpendCategory | "All")[] = [
 ];
 
 type SortKey = "date" | "amount" | "risk";
+
+type LedgerInsights = {
+  count: number;
+  spendTotal: number;
+  avg: number;
+  topCategory: SpendCategory | null;
+  topCategoryTotal: number;
+  catShare: number;
+  topMerchant: string;
+  topMerchantTotal: number;
+  largest: { merchant: string; amount: number } | null;
+  flaggedCount: number;
+  flaggedValue: number;
+  clearRate: number;
+};
+
+function InsightStat({
+  label,
+  value,
+  sub,
+  accent,
+  bar,
+  valueClassName,
+  title,
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: string;
+  accent: string;
+  bar?: number;
+  valueClassName?: string;
+  title?: string;
+}) {
+  return (
+    <div
+      className="ux-insight-stat"
+      style={{ "--insight-accent": accent } as CSSProperties}
+    >
+      <div className="ux-insight-stat__head">
+        <span className="ux-insight-stat__dot" aria-hidden />
+        <span className="ux-insight-stat__label">{label}</span>
+      </div>
+      <div
+        className={`ux-insight-stat__value${valueClassName ? ` ${valueClassName}` : ""}`}
+        title={title}
+      >
+        {value}
+      </div>
+      {sub && <div className="ux-insight-stat__sub">{sub}</div>}
+      {bar != null && (
+        <div className="ux-insight-stat__track" aria-hidden>
+          <div className="ux-insight-stat__fill" style={{ width: `${Math.min(bar, 100)}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildLedgerInsights(filtered: ReturnType<typeof complianceResults>): LedgerInsights | null {
+  if (!filtered.length) return null;
+
+  const debits = filtered.filter((r) => r.tx.type !== "Credit");
+  const spendTotal = debits.reduce((s, r) => s + r.tx.amount, 0);
+  const avg = debits.length ? spendTotal / debits.length : 0;
+
+  const byCategory = new Map<SpendCategory, number>();
+  const byMerchant = new Map<string, number>();
+  let largest: { merchant: string; amount: number } | null = null;
+
+  for (const r of debits) {
+    const cat = categoryOf(r.tx.mcc);
+    byCategory.set(cat, (byCategory.get(cat) ?? 0) + r.tx.amount);
+    byMerchant.set(r.tx.merchant, (byMerchant.get(r.tx.merchant) ?? 0) + r.tx.amount);
+    if (!largest || r.tx.amount > largest.amount) {
+      largest = { merchant: r.tx.merchant, amount: r.tx.amount };
+    }
+  }
+
+  let topCategory: SpendCategory | null = null;
+  let topCategoryTotal = 0;
+  for (const [cat, total] of byCategory) {
+    if (total > topCategoryTotal) {
+      topCategory = cat;
+      topCategoryTotal = total;
+    }
+  }
+
+  let topMerchant = "";
+  let topMerchantTotal = 0;
+  for (const [merchant, total] of byMerchant) {
+    if (total > topMerchantTotal) {
+      topMerchant = merchant;
+      topMerchantTotal = total;
+    }
+  }
+
+  const flagged = filtered.filter((r) => r.status !== "clear");
+  const flaggedValue = flagged.reduce(
+    (s, r) => s + (r.tx.type === "Credit" ? 0 : r.tx.amount),
+    0,
+  );
+  const clearRate = (filtered.filter((r) => r.status === "clear").length / filtered.length) * 100;
+
+  const catShare = spendTotal && topCategory ? (topCategoryTotal / spendTotal) * 100 : 0;
+
+  return {
+    count: filtered.length,
+    spendTotal,
+    avg,
+    topCategory,
+    topCategoryTotal,
+    catShare,
+    topMerchant,
+    topMerchantTotal,
+    largest,
+    flaggedCount: flagged.length,
+    flaggedValue,
+    clearRate,
+  };
+}
 
 export default function TransactionsScreen() {
   const results = useMemo(() => complianceResults(), []);
@@ -54,6 +174,8 @@ export default function TransactionsScreen() {
     const sum = filtered.reduce((s, r) => s + (r.tx.type === "Credit" ? -r.tx.amount : r.tx.amount), 0);
     return { count: filtered.length, sum };
   }, [filtered]);
+
+  const insights = useMemo(() => buildLedgerInsights(filtered), [filtered]);
 
   return (
     <AppShell
@@ -103,6 +225,126 @@ export default function TransactionsScreen() {
             </button>
           ))}
         </div>
+
+        {insights && (
+          <div className="ux-ledger-insights">
+            <div className="ux-ledger-insights__head">
+              <div className="ux-ledger-insights__brand">
+                <span className="ux-ledger-insights__icon" aria-hidden>
+                  ✦
+                </span>
+                <div>
+                  <div className="ux-ledger-insights__title">Ledger insights</div>
+                  <div className="ux-ledger-insights__sub">Live summary · updates with your filters</div>
+                </div>
+              </div>
+              <span className="ux-ledger-insights__badge">AI summary</span>
+            </div>
+
+            <div className="ux-ledger-insights__body">
+              <div className="ux-ledger-insights__narrative">
+                <p className="ux-ledger-insights__bubble">
+                  Across <strong>{insights.count.toLocaleString()}</strong> matching charges totaling{" "}
+                  <strong>{fmtMoney(insights.spendTotal, { compact: true })}</strong>
+                  {insights.topCategory ? (
+                    <>
+                      , <strong>{insights.topCategory}</strong> leads at{" "}
+                      <strong>{insights.catShare.toFixed(0)}%</strong> of spend (
+                      {fmtMoney(insights.topCategoryTotal, { compact: true })}).
+                    </>
+                  ) : (
+                    "."
+                  )}{" "}
+                  Average charge is <strong>{fmtMoney(insights.avg, { compact: true })}</strong>.
+                  {insights.topMerchant ? (
+                    <>
+                      {" "}
+                      Most spend is with{" "}
+                      <strong title={insights.topMerchant}>{insights.topMerchant}</strong> (
+                      {fmtMoney(insights.topMerchantTotal, { compact: true })}).
+                    </>
+                  ) : null}
+                  {insights.largest ? (
+                    <>
+                      {" "}
+                      Largest single charge: <strong>{fmtMoney(insights.largest.amount)}</strong> at{" "}
+                      {insights.largest.merchant}.
+                    </>
+                  ) : null}
+                  {insights.flaggedCount ? (
+                    <>
+                      {" "}
+                      <strong>{insights.flaggedCount.toLocaleString()}</strong> rows flagged (
+                      {fmtMoney(insights.flaggedValue, { compact: true })} under review).
+                    </>
+                  ) : (
+                    <> All visible rows are policy-clear.</>
+                  )}
+                </p>
+              </div>
+
+              <div className="ux-ledger-insights__stats">
+                <InsightStat
+                  label="Total spend"
+                  value={fmtMoney(insights.spendTotal, { compact: true })}
+                  sub={`${insights.count.toLocaleString()} rows`}
+                  accent="var(--accent)"
+                />
+                <InsightStat
+                  label="Average"
+                  value={fmtMoney(insights.avg, { compact: true })}
+                  sub="per charge"
+                  accent="#0ea5e9"
+                />
+                <InsightStat
+                  label="Top category"
+                  value={insights.topCategory ?? "—"}
+                  sub={
+                    insights.topCategory
+                      ? fmtMoney(insights.topCategoryTotal, { compact: true })
+                      : undefined
+                  }
+                  accent={
+                    insights.topCategory
+                      ? CATEGORY_COLORS[insights.topCategory]
+                      : "var(--muted)"
+                  }
+                  bar={insights.catShare}
+                />
+                <InsightStat
+                  label="Top merchant"
+                  value={insights.topMerchant || "—"}
+                  sub={fmtMoney(insights.topMerchantTotal, { compact: true })}
+                  accent="#6366f1"
+                  valueClassName="ux-insight-stat__value--sm"
+                  title={insights.topMerchant || undefined}
+                />
+                <InsightStat
+                  label="Flagged"
+                  value={insights.flaggedCount.toLocaleString()}
+                  sub={
+                    insights.flaggedCount
+                      ? fmtMoney(insights.flaggedValue, { compact: true })
+                      : "none"
+                  }
+                  accent="var(--status-high)"
+                  bar={
+                    insights.count
+                      ? (insights.flaggedCount / insights.count) * 100
+                      : undefined
+                  }
+                />
+                <InsightStat
+                  label="Clear rate"
+                  value={`${insights.clearRate.toFixed(1)}%`}
+                  sub="policy clean"
+                  accent="var(--status-positive)"
+                  bar={insights.clearRate}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ overflowX: "auto" }}>
           <table className="ux-table">
